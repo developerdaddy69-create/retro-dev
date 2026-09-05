@@ -161,7 +161,52 @@ dashboard doubles as the submission UI.
 
 ## Live run log (Phase 5)
 - Issue #1 ("debug test") closed 2026-09-05 after confirming it was only
-  the connectivity test. Next open issue will be a real requirement.
+  the connectivity test.
+- Issue #2 opened 2026-09-05 — real requirement (photo-studio booking
+  site), currently sitting at PM intake, `prd`/`intake` labels, no
+  `awaiting-human` yet (PM hasn't drafted round-1 questions).
+
+## Step 5 — Real automation via the UI, not Claude Code (2026-09-05)
+You explicitly did not want the pipeline depending on me acting live or on
+Claude Code scheduled tasks (which deadlocked earlier — see Step 3 above).
+Chose **"UI button, pay-per-click"** over a timer-based cron or continuing
+to have me act live.
+
+- [x] `api/run-agent-step.js` — new serverless function, guarded by the
+      same `SUBMIT_SECRET` header as the other POST endpoints. Finds the
+      single most-blocking open issue (priority order `prd` → `design` →
+      `uat`, first one NOT already labeled `awaiting-human`), builds the
+      full issue+comments thread as context, and calls the **Anthropic API
+      directly** (forced tool-use for structured output) with a condensed
+      version of that role's protocol from `.claude/agents/*.md`. Executes
+      the model's decision for real: posts the comment, adds/removes
+      labels, and — only on an explicit lock/approval — writes the final
+      doc (`docs/PRD.v1.md` / `docs/DESIGN.v1.md`) via GitHub's Contents
+      API.
+- [x] Scope is deliberately the three GitHub-thread/conversation-driven
+      roles (Product Manager, Designer, UAT Coordinator) — these read and
+      decide over an issue thread, which a stateless API call handles
+      well. Developer/DevOps (real code changes, CI, deploys) are **not**
+      automated by this button — that needs a checked-out repo and a
+      build/test pipeline, not a single API call. Flagged as a follow-up,
+      not attempted here.
+- [x] Dashboard: new "PIPELINE AUTOMATION" panel with a **Run Next
+      Pipeline Step** button (reuses the same locally-saved operator
+      secret as the submit box). One click = one real, billed Anthropic
+      API call — deliberately not on a timer, so cost stays bounded to
+      what you actually trigger. Result also plays as a real scene event
+      (the matching agent's room animates) via `retrodevPlayEvent`.
+- [ ] **Needs you to add `ANTHROPIC_API_KEY` in Vercel's project env vars**
+      before the button will work (separate from `GITHUB_TOKEN` /
+      `SUBMIT_SECRET`, which are already set). I cannot create or paste
+      this key for you — Anthropic API keys are a credential, same rule as
+      the GitHub PAT incident earlier this session. Get one from
+      https://console.anthropic.com, add it in Vercel, then the button is
+      live immediately (no redeploy needed for env var changes to take
+      effect on the next function invocation).
+- [ ] Model id defaults to `claude-sonnet-4-5-20250929`, overridable via
+      an `ANTHROPIC_MODEL` env var if that id ever 404s against the live
+      API.
 
 ## Still open from Phase 4
 - [ ] `deploy-uat.yml` needs `VERCEL_TOKEN` (CLI-based alias promotion,
@@ -172,6 +217,7 @@ dashboard doubles as the submission UI.
       instead of instant webhooks; marketing stays draft-only for now)
 
 ## Next up
-Waiting on a real requirement submitted through the dashboard. Once it
-lands, I act as Product Manager on it live (per the automation-path
-decision above) and the intake loop runs for real.
+Waiting on you to add `ANTHROPIC_API_KEY` in Vercel, then click **Run Next
+Pipeline Step** on the dashboard to run the Product Manager's first real
+intake pass on issue #2 — no live conversation with me required for that
+step anymore.

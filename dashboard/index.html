@@ -40,6 +40,19 @@
   #submit-panel button:disabled { opacity: 0.5; cursor: default; }
   #submit-status { font-size: 11px; margin-top: 6px; min-height: 14px; }
 
+  #automation-panel {
+    flex: 0 0 auto; background: #0f1420; border-bottom: 2px solid #2d3748; padding: 12px;
+    font-family: 'Courier New', monospace; color: #e2e8f0;
+  }
+  #automation-panel h3 { margin: 0 0 4px; font-size: 13px; color: #4ade80; }
+  #automation-panel p { margin: 0 0 8px; font-size: 10px; color: #64748b; }
+  #automation-panel button {
+    width: 100%; background: #14b8a6; color: #000; border: none; padding: 8px;
+    font-family: inherit; font-weight: bold; cursor: pointer;
+  }
+  #automation-panel button:disabled { opacity: 0.5; cursor: default; }
+  #automation-status { font-size: 11px; margin-top: 6px; min-height: 14px; white-space: pre-wrap; }
+
   #confirm-panel {
     flex: 0 0 auto; max-height: 45%; overflow-y: auto;
     background: #1a0f0f; border-bottom: 2px solid #f87171; padding: 12px;
@@ -103,6 +116,12 @@
       <input id="secret-input" type="password" placeholder="operator secret (saved locally)" />
       <button id="req-submit">Send to Product Manager</button>
       <div id="submit-status"></div>
+    </div>
+    <div id="automation-panel">
+      <h3>PIPELINE AUTOMATION</h3>
+      <p>Runs one real agent step (PM / Designer / UAT) via API. Costs a small amount per click.</p>
+      <button id="run-step-btn">Run Next Pipeline Step</button>
+      <div id="automation-status"></div>
     </div>
     <div id="confirm-panel">
       <div class="badge">⚠ REQUIRES YOUR CONFIRMATION</div>
@@ -463,6 +482,55 @@ window.retrodevSetWaiting = (reason) => {
       status.style.color = '#f87171';
     } finally {
       submitBtn.disabled = false;
+    }
+  });
+})();
+
+// --- "Run Next Pipeline Step" button: real automation, no Claude Code ---
+// Calls /api/run-agent-step, which itself calls the Anthropic API directly
+// to act as whichever agent role (PM/Designer/UAT) is next due, then
+// writes the result to GitHub for real. One click = one real, billed
+// API call -- deliberately not on a timer, so cost stays bounded to what
+// you actually trigger.
+(function () {
+  const btn = document.getElementById('run-step-btn');
+  const status = document.getElementById('automation-status');
+  const ROLE_ROOM = {
+    'Product Manager': 'planning_deck',
+    'Designer': 'design_studio',
+    'UAT Coordinator': 'uat_lounge',
+  };
+
+  btn.addEventListener('click', async () => {
+    const secret = (localStorage.getItem('retrodev_secret') || '').trim();
+    if (!secret) { status.textContent = 'Enter the operator secret above first.'; status.style.color = '#f87171'; return; }
+
+    btn.disabled = true;
+    status.textContent = 'Running next pipeline step...';
+    status.style.color = '#93c5fd';
+
+    try {
+      const res = await fetch('/api/run-agent-step', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-retro-secret': secret },
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
+
+      if (!data.action_taken) {
+        status.textContent = data.summary;
+        status.style.color = '#94a3b8';
+      } else {
+        status.textContent = `${data.role} on #${data.issue_number}: ${data.summary}`;
+        status.style.color = '#4ade80';
+        const room = ROLE_ROOM[data.role];
+        if (room && window.retrodevPlayEvent) window.retrodevPlayEvent(room, `${data.role}: ${data.summary}`);
+      }
+    } catch (err) {
+      status.textContent = `Failed: ${err.message}`;
+      status.style.color = '#f87171';
+    } finally {
+      btn.disabled = false;
     }
   });
 })();
