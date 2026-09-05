@@ -155,72 +155,165 @@ class PipelineScene extends Phaser.Scene {
   create() {
     this.roomSprites = {};
     this.bubbles = {};
+    this.createPixelTextures();
+
+    // One continuous open-plan office floor -- no per-room walls, so agents
+    // can freely wander over to each other's desks instead of being stuck
+    // in separate boxes, like the ChatDev reference office.
+    this.add.tileSprite(0, 0, this.scale.width, this.scale.height, 'floor_tile').setOrigin(0, 0).setDepth(0);
 
     this.add.text(20, 16, 'RETRODEV SYNAPSE — LIVE PIPELINE', {
       fontFamily: 'Courier New', fontSize: '20px', color: '#4ade80'
-    });
+    }).setDepth(1000);
 
     ROOMS.forEach((room, i) => {
-      // Room floor: real tiled pixel-art texture instead of a flat rectangle.
-      const floor = this.add.tileSprite(room.x, room.y, 200, 140, 'floor_tile');
-      this.add.rectangle(room.x, room.y, 200, 140).setStrokeStyle(2, 0x2d3748);
-      this.add.text(room.x - 90, room.y - 65, room.label.toUpperCase(), {
-        fontFamily: 'Courier New', fontSize: '12px', color: '#000000', backgroundColor: '#ffffffaa', padding: { x: 3, y: 1 }
-      });
+      const deskX = room.x + 50, deskY = room.y - 35;
+      const chairX = room.x + 50, chairY = room.y - 3;
 
-      // A small furniture piece as room decoration (alternate two styles).
+      // Desk with a laptop on it -- Kenney's dungeon pack has no laptop
+      // sprite, so it's drawn procedurally in createPixelTextures() to
+      // match the same pixel-art scale/palette.
       const furnitureKey = i % 2 === 0 ? 'furniture_dresser' : 'furniture_desk';
-      this.add.image(room.x + 78, room.y - 55, furnitureKey).setScale(2).setOrigin(0.5, 1);
+      this.add.image(deskX, deskY, furnitureKey).setScale(2).setOrigin(0.5, 1).setDepth(deskY);
+      this.add.image(deskX, deskY - 15, 'laptop').setScale(2).setOrigin(0.5, 1).setDepth(deskY + 1);
+
+      // Simple drawn chair in front of the desk.
+      this.add.rectangle(chairX, chairY + 8, 16, 10, 0x5b3a29).setStrokeStyle(1, 0x3a2417).setDepth(chairY - 1);
+
+      this.add.text(deskX, deskY - 62, room.name, {
+        fontFamily: 'Courier New', fontSize: '12px', color: '#f8fafc'
+      }).setOrigin(0.5, 0).setDepth(1000);
+      this.add.text(deskX, deskY - 49, room.agent, {
+        fontFamily: 'Courier New', fontSize: '9px', color: '#94a3b8'
+      }).setOrigin(0.5, 0).setDepth(1000);
 
       // Agent sprite: real chibi character art, colored/styled per role
       // (Kenney's Tiny Dungeon pack -- see assets/CREDITS.md).
-      const sprite = this.add.image(room.x, room.y + 10, room.charKey).setScale(2);
+      const sprite = this.add.image(chairX, chairY, room.charKey).setScale(2).setDepth(chairY);
 
-      this.add.text(room.x - 55, room.y + 40, `${room.name} — ${room.agent}`, {
-        fontFamily: 'Courier New', fontSize: '11px', color: '#e2e8f0'
-      });
+      const entry = {
+        sprite, room, working: false, wandering: true,
+        chairPos: { x: chairX, y: chairY }, workTimer: null, bobTween: null,
+      };
+      this.roomSprites[room.key] = entry;
 
-      // Idle wander: each agent ambles around its own room floor instead of
-      // just bobbing in place, so the office reads as "alive" like ChatDev's
-      // characters walking between desks. Staggered start so they don't all
-      // move in lockstep.
-      this.time.delayedCall(Phaser.Math.Between(0, 1500), () => this.wander(sprite, room));
-
-      this.roomSprites[room.key] = { sprite, room };
+      // Idle wander across the WHOLE shared floor (not boxed to one room)
+      // so agents visibly cross paths and pass by each other's desks,
+      // instead of pacing alone in a private box. Staggered start so they
+      // don't all move in lockstep.
+      this.time.delayedCall(Phaser.Math.Between(0, 1500), () => this.wander(entry));
     });
 
     // Package sprite used for handoff / loop animations between rooms
-    this.package = this.add.rectangle(-100, -100, 16, 16, 0xffffff);
+    this.package = this.add.rectangle(-100, -100, 16, 16, 0xffffff).setDepth(2000);
   }
 
-  // Random-walks a sprite around its room's floor, pausing between moves,
-  // so agents look like they're pacing/thinking rather than static icons.
-  wander(sprite, room) {
+  // Draws small pixel-art props Kenney's dungeon pack doesn't include
+  // (laptop, teacup) at the same scale/palette as the real sprite sheets.
+  createPixelTextures() {
+    const g = this.make.graphics({ x: 0, y: 0, add: false });
+
+    g.clear();
+    g.fillStyle(0x334155); g.fillRect(0, 5, 14, 4);   // keyboard/base
+    g.fillStyle(0x0f172a); g.fillRect(1, 0, 12, 5);   // screen bezel
+    g.fillStyle(0x38bdf8); g.fillRect(2, 1, 10, 3);   // screen glow
+    g.generateTexture('laptop', 14, 9);
+
+    g.clear();
+    g.fillStyle(0xf1f5f9); g.fillRect(1, 2, 9, 6);    // cup body
+    g.fillStyle(0x92400e); g.fillRect(2, 3, 7, 2);    // tea
+    g.fillStyle(0xf1f5f9); g.fillRect(9, 3, 2, 3);    // handle
+    g.generateTexture('teacup', 12, 8);
+
+    g.destroy();
+  }
+
+  // Random-walks a sprite across the shared office floor, pausing between
+  // moves, so agents look like they're pacing/socializing rather than
+  // static icons -- and so their paths actually cross each other's desks.
+  wander(entry) {
+    if (!entry.wandering) return;
     const BASE_SCALE = 2;
-    const minX = room.x - 75, maxX = room.x + 75;
-    const minY = room.y - 20, maxY = room.y + 15;
+    const sprite = entry.sprite;
+    const minX = 60, maxX = this.scale.width - 60;
+    const minY = 90, maxY = this.scale.height - 70;
     const step = () => {
+      if (!entry.wandering) return;
       const tx = Phaser.Math.Between(minX, maxX);
       const ty = Phaser.Math.Between(minY, maxY);
       const dist = Phaser.Math.Distance.Between(sprite.x, sprite.y, tx, ty);
-      const duration = Phaser.Math.Clamp(dist * 15, 500, 2400);
+      const duration = Phaser.Math.Clamp(dist * 15, 600, 3200);
       sprite.setScale(tx < sprite.x ? -BASE_SCALE : BASE_SCALE, BASE_SCALE);
       this.tweens.add({
         targets: sprite, x: tx, y: ty, duration, ease: 'Sine.easeInOut',
-        onComplete: () => this.time.delayedCall(Phaser.Math.Between(1000, 3000), step)
+        onUpdate: () => sprite.setDepth(sprite.y),
+        onComplete: () => {
+          if (!entry.wandering) return;
+          // Occasionally pause for a tea break -- a visible cup appears
+          // next to whoever isn't currently heads-down working.
+          if (Phaser.Math.Between(0, 100) < 35) this.showTea(entry);
+          this.time.delayedCall(Phaser.Math.Between(1200, 3500), step);
+        }
       });
     };
     step();
+  }
+
+  showTea(entry) {
+    const key = 'tea_' + entry.room.key;
+    if (this.bubbles[key]) this.bubbles[key].destroy();
+    const cup = this.add.image(entry.sprite.x + 14, entry.sprite.y - 4, 'teacup')
+      .setScale(1.6).setDepth(entry.sprite.y + 1);
+    this.bubbles[key] = cup;
+    this.time.delayedCall(2200, () => { cup.destroy(); delete this.bubbles[key]; });
+  }
+
+  // Toggles an agent between "working" (seated at their own desk, laptop
+  // lit, small typing bob) and "relaxing" (free-roaming the shared floor,
+  // occasional tea break) -- driven by real pipeline activity, not a timer
+  // for its own sake: working=true resets a 20s idle timeout each time a
+  // fresh event lands, so the pose tracks actual activity.
+  setWorking(key, working) {
+    const entry = this.roomSprites[key];
+    if (!entry) return;
+
+    if (entry.workTimer) { entry.workTimer.remove(false); entry.workTimer = null; }
+    if (working) entry.workTimer = this.time.delayedCall(20000, () => this.setWorking(key, false));
+
+    if (entry.working === working) return; // already in that state, timer just refreshed
+    entry.working = working;
+    entry.wandering = !working;
+
+    const sprite = entry.sprite;
+    this.tweens.killTweensOf(sprite);
+    if (entry.bobTween) { entry.bobTween.remove(); entry.bobTween = null; }
+
+    if (working) {
+      sprite.setScale(2, 2);
+      this.tweens.add({
+        targets: sprite, x: entry.chairPos.x, y: entry.chairPos.y, duration: 700, ease: 'Sine.easeInOut',
+        onUpdate: () => sprite.setDepth(sprite.y),
+        onComplete: () => {
+          entry.bobTween = this.tweens.add({
+            targets: sprite, y: entry.chairPos.y - 2, duration: 260, yoyo: true, repeat: -1, ease: 'Sine.easeInOut'
+          });
+        }
+      });
+    } else {
+      this.time.delayedCall(250, () => this.wander(entry));
+    }
   }
 
   showBubble(roomKey, text, color = '#e2e8f0') {
     const entry = this.roomSprites[roomKey];
     if (!entry) return;
     if (this.bubbles[roomKey]) this.bubbles[roomKey].destroy();
-    const bubble = this.add.text(entry.room.x - 95, entry.room.y - 90, text, {
+    const sx = Phaser.Math.Clamp(entry.sprite.x - 95, 10, this.scale.width - 210);
+    const sy = Math.max(entry.sprite.y - 60, 10);
+    const bubble = this.add.text(sx, sy, text, {
       fontFamily: 'Courier New', fontSize: '11px', color, backgroundColor: '#000000cc',
       padding: { x: 6, y: 4 }, wordWrap: { width: 190 }
-    });
+    }).setDepth(2000);
     this.bubbles[roomKey] = bubble;
     this.time.delayedCall(4000, () => { bubble.destroy(); delete this.bubbles[roomKey]; });
   }
@@ -257,6 +350,7 @@ class PipelineScene extends Phaser.Scene {
     if (!this.roomSprites[room]) room = 'code_vault'; // fallback for unmapped rooms
     this.showBubble(room, text, '#e2e8f0');
     this.ticker(text);
+    this.setWorking(room, true);
   }
 }
 
