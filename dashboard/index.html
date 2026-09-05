@@ -183,7 +183,7 @@ class PipelineScene extends Phaser.Scene {
   // so agents look like they're pacing/thinking rather than static icons.
   wander(sprite, room) {
     const minX = room.x - 75, maxX = room.x + 75;
-    const minY = room.y - 5, maxY = room.y + 55;
+    const minY = room.y - 20, maxY = room.y + 15;
     const step = () => {
       const tx = Phaser.Math.Between(minX, maxX);
       const ty = Phaser.Math.Between(minY, maxY);
