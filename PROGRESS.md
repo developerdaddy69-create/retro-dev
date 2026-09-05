@@ -101,11 +101,12 @@ dashboard doubles as the submission UI.
       ("agreed"/"tesssssstttt") → I read the reply, closed out the issue
       (it was just the connectivity test), cleared the `awaiting-human`
       label → badge disappeared from the dashboard. Full loop works.
-- [ ] Step 4: swap the dashboard's mock event feed for real polling
-      against GitHub's API (issues, PRs, deployments) — the confirmation
-      badge already does this for the human-checkpoint case; the mock
-      Phaser room animations (bubbles/package walks) are still the old
-      scripted sequence, not yet driven by real events.
+- [x] Step 4: `api/pipeline-events.js` turns GitHub's public repo activity
+      feed (issue opens/closes/comments/labels, pushes, PR events) into
+      room bubbles + ticker text. Verified live: real activity from
+      issue #1 renders correctly on the dashboard, no mock data left
+      anywhere (bubbles, ticker, waiting banner, confirmation badge all
+      real now).
 
 ## Live run log (Phase 5)
 - Issue #1 ("debug test") closed 2026-09-05 after confirming it was only
