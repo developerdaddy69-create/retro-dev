@@ -240,3 +240,37 @@ Waiting on you to add `ANTHROPIC_API_KEY` in Vercel, then click **Run Next
 Pipeline Step** on the dashboard to run the Product Manager's first real
 intake pass on issue #2 — no live conversation with me required for that
 step anymore.
+
+## Phase 6 — Dashboard rebuilt as a Three.js 3D monitor (2026-09-05)
+You explicitly asked to drop the retro pixel-art/Phaser office look
+entirely ("LEAVE RETRO... GIVE ME A COMPLETE WELL ADVANCE 3JS USED WEBSITE
+FOR MY AGENTS TO MONITOR THEM PROPERLY IN DETAIL") and get a real,
+detailed monitoring view instead.
+
+- [x] `dashboard/index.html` fully rewritten. Phaser/pixel-art removed;
+      replaced with Three.js (ES module import-map from jsdelivr,
+      `three@0.160.0`) rendering the 7 pipeline stages as glowing 3D nodes
+      strung along a `CatmullRomCurve3`/`TubeGeometry` path, `OrbitControls`
+      for free camera movement, `CSS2DRenderer` for name/role labels on
+      each node.
+- [x] Real monitoring upgrades beyond what the retro version had:
+      a **Current Project** card (stage + waiting-on-you tag), a **Agent
+      Detail** panel (click any node → see that agent's exact
+      working/idle/waiting state and last real message), a working/waiting
+      pulsing dot per node label, a glowing red ring on whichever node is
+      actually `awaiting-human` right now, and an animated pulse traveling
+      the pipeline path on real handoff events — all meant to directly
+      answer "is my agent working or stuck," not just look nice.
+- [x] All backend wiring preserved unchanged: `/api/submit-requirement`,
+      `/api/answer`, `/api/pipeline-status` (incl. `current.room`),
+      `/api/pipeline-events`, `/api/run-agent-step`, the operator-secret
+      flow, and the confirm/answer panel all work exactly as before — only
+      the visualization + styling layer changed. Restyled to a dark
+      glassmorphism theme (Space Grotesk/JetBrains Mono) in place of the
+      pixel-art/scanline theme.
+- [x] Verified live on Vercel: no console errors, Current Project card
+      correctly showing issue #2 at "Requirement Intake (Product Manager)"
+      with Priya's real dialogue-log message, node click → Agent Detail
+      panel updates correctly (tested via direct DOM event dispatch after
+      a couple of missed clicks caused by the scene's continuous slow
+      auto-rotate — not a bug, just automated-testing timing).
