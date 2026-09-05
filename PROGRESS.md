@@ -10,8 +10,20 @@ land; each has a status: `done`, `in progress`, `blocked (needs you)`.
 - [x] `PROGRESS.md` (this file)
 
 ## Phase 1 — Agent configs (`.claude/agents/*.md`)
-- [x] `product-manager.md` — intake loop (v6 §2), locks PRD
-- [x] `developer.md` — builds from PRD, asks PM when ambiguous (v6 §3)
+- [x] `product-manager.md` — intake loop (v6 §2), locks PRD, hands off to
+      Designer (not straight to Developer)
+- [x] `designer.md` — **new role, added 2026-09-05.** Turns the locked PRD
+      into a visual + animation design spec in the Dribbble "3D Website"
+      style (https://dribbble.com/tags/3d-website — immersive 3D/WebGL or
+      Spline hero, GSAP/Framer Motion scroll-triggered animation,
+      glassmorphism/depth, real micro-interactions). Same
+      loop-until-explicitly-approved pattern as PM's intake and UAT's
+      sign-off — this is now a 4th hard human checkpoint: the Developer
+      may not start the visual build before `design_approved` fires.
+- [x] `developer.md` — builds from the locked PRD **and** the
+      human-approved `docs/DESIGN.v{n}.md`, asks PM (PRD) or Designer
+      (design) when ambiguous, implements the named animation
+      library for real rather than a static approximation
 - [x] `qa-tester.md` — resolve-until-done loop (v6 §4), visibility summaries,
       deadlock detection
 - [x] `devops.md` — dev deploy, smoke tests, UAT deploy
@@ -20,7 +32,11 @@ land; each has a status: `done`, `in progress`, `blocked (needs you)`.
 
 ## Phase 2 — GitHub templates & workflows (local files, ready to push)
 - [x] `.github/ISSUE_TEMPLATE/prd-intake.md`
+- [x] `.github/ISSUE_TEMPLATE/design-brief.md` — mirrors prd-intake's
+      loop-until-approved pattern for the Designer's checkpoint
 - [x] `.github/ISSUE_TEMPLATE/uat-checklist.md`
+- [x] `design` label created on the live repo (teal `14b8a6`), alongside
+      the existing `prd`/`intake`/`uat`/`awaiting-human` labels
 - [x] `.github/workflows/ci.yml` — runs Vitest/Playwright on every PR
 - [x] `.github/workflows/deploy-dev.yml` — auto Vercel preview on merge
 - [x] `.github/workflows/deploy-uat.yml` — gated by required-reviewer
@@ -63,6 +79,15 @@ land; each has a status: `done`, `in progress`, `blocked (needs you)`.
       event visibly walks that one agent back to their desk while the
       rest stay on break.
       see [dashboard/assets/CREDITS.md](dashboard/assets/CREDITS.md).
+- [x] Added the 7th room, **Design Studio** (agent: Designer, character:
+      Dara), matching the new `designer.md` role. Re-downloaded Kenney's
+      Tiny Dungeon pack (the raw `tilemap.png` had been cleaned up after
+      the first cropping pass) just to crop Dara's sprite — re-fetched the
+      CC0 zip via the same `kenney.nl/assets/tiny-dungeon` page, cropped,
+      then deleted the zip again. Work zone regridded to 4+3 desks (was
+      3+3) to fit the new desk; `roomFor()` in `api/pipeline-events.js` now
+      maps the `design` label to `design_studio`. Created the `design`
+      label on the live repo and `.github/ISSUE_TEMPLATE/design-brief.md`.
 
 ## Phase 4 — Live wiring (blocked — needs accounts/credentials only you can create)
 - [x] GitHub repository created and scaffold pushed —

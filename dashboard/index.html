@@ -134,15 +134,16 @@
 // room (coffee machine + benches) is a separate area to the right -- see
 // BREAK_ZONE in PipelineScene.wander().
 const ROOMS = [
-  { key: 'planning_deck',    label: 'Planning Deck',    agent: 'Product Manager', name: 'Priya', charKey: 'char_priya', color: 0x3b82f6, x: 190, y: 160 },
-  { key: 'code_vault',       label: 'Code Vault',       agent: 'Developer',       name: 'Dev',   charKey: 'char_dev',   color: 0xf59e0b, x: 390, y: 160 },
-  { key: 'sandbox_lab',      label: 'Sandbox Lab',      agent: 'QA Tester',       name: 'Quinn', charKey: 'char_quinn', color: 0xef4444, x: 590, y: 160 },
-  { key: 'deploy_bay',       label: 'Deploy Bay',       agent: 'DevOps',          name: 'Devon', charKey: 'char_devon', color: 0x8b5cf6, x: 190, y: 340 },
-  { key: 'uat_lounge',       label: 'UAT Lounge',       agent: 'UAT Coordinator', name: 'Uma',   charKey: 'char_uma',   color: 0x06b6d4, x: 390, y: 340 },
-  { key: 'broadcast_studio', label: 'Broadcast Studio', agent: 'Social Expert',   name: 'Sasha', charKey: 'char_sasha', color: 0xec4899, x: 590, y: 340 },
+  { key: 'planning_deck',    label: 'Planning Deck',    agent: 'Product Manager', name: 'Priya', charKey: 'char_priya', color: 0x3b82f6, x: 160, y: 150 },
+  { key: 'design_studio',    label: 'Design Studio',    agent: 'Designer',        name: 'Dara',  charKey: 'char_dara',  color: 0x14b8a6, x: 300, y: 150 },
+  { key: 'code_vault',       label: 'Code Vault',       agent: 'Developer',       name: 'Dev',   charKey: 'char_dev',   color: 0xf59e0b, x: 440, y: 150 },
+  { key: 'sandbox_lab',      label: 'Sandbox Lab',      agent: 'QA Tester',       name: 'Quinn', charKey: 'char_quinn', color: 0xef4444, x: 580, y: 150 },
+  { key: 'deploy_bay',       label: 'Deploy Bay',       agent: 'DevOps',          name: 'Devon', charKey: 'char_devon', color: 0x8b5cf6, x: 230, y: 330 },
+  { key: 'uat_lounge',       label: 'UAT Lounge',       agent: 'UAT Coordinator', name: 'Uma',   charKey: 'char_uma',   color: 0x06b6d4, x: 370, y: 330 },
+  { key: 'broadcast_studio', label: 'Broadcast Studio', agent: 'Social Expert',   name: 'Sasha', charKey: 'char_sasha', color: 0xec4899, x: 510, y: 330 },
 ];
 
-const WORK_ZONE  = { cx: 360, cy: 260, w: 560, h: 380 };
+const WORK_ZONE  = { cx: 370, cy: 260, w: 540, h: 380 };
 const BREAK_ZONE = { cx: 745, cy: 285, w: 170, h: 400, minX: 670, maxX: 820, minY: 130, maxY: 470 };
 
 class PipelineScene extends Phaser.Scene {
@@ -578,6 +579,7 @@ window.retrodevSetWaiting = (reason) => {
 
   const ROOM_META = {
     planning_deck:    { label: 'Priya (Product Manager)', color: '#3b82f6' },
+    design_studio:    { label: 'Dara (Designer)',         color: '#14b8a6' },
     code_vault:       { label: 'Dev (Developer)',         color: '#f59e0b' },
     sandbox_lab:      { label: 'Quinn (QA Tester)',       color: '#ef4444' },
     deploy_bay:       { label: 'Devon (DevOps)',          color: '#8b5cf6' },

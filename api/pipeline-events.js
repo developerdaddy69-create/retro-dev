@@ -11,6 +11,7 @@ const OWNER = 'developerdaddy69-create';
 function roomFor(labels) {
   const names = (labels || []).map((l) => (typeof l === 'string' ? l : l.name));
   if (names.includes('uat')) return 'uat_lounge';
+  if (names.includes('design')) return 'design_studio';
   if (names.includes('prd') || names.includes('intake')) return 'planning_deck';
   return 'code_vault';
 }

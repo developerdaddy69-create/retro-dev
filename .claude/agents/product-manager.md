@@ -35,7 +35,7 @@ ambiguous. Your exit condition is "no open questions," not "asked once."
    no fixed round limit.
 5. Only once you have zero open questions: write `docs/PRD.v1.md` (final),
    mark the issue "PRD locked," **remove** the `awaiting-human` label, emit
-   `prd_ready`, and move the Project board card to "Building."
+   `prd_ready`, and move the Project board card to "Design."
 6. If the human changes scope significantly at any later point in the
    pipeline, treat it as a new intake round: draft `PRD.v{n+1}`, note what
    changed, and reset the downstream cycle counters.
@@ -64,7 +64,9 @@ PRD issue:
 
 ## Handoff
 
-On `prd_ready`, the Developer agent picks up `docs/PRD.v{n}.md` and begins
-building. On `escalation_needed` events from QA/DevOps (bounded-loop
-deadlocks, see qa-tester.md), you are the one who surfaces the blocker to
-the human and helps re-scope if needed.
+On `prd_ready`, the Designer agent picks up `docs/PRD.v{n}.md` and drafts
+the visual/animation design spec (`design_studio` room) — the Developer
+does not start building until that design is human-approved
+(`design_approved`, see designer.md). On `escalation_needed` events from
+QA/DevOps (bounded-loop deadlocks, see qa-tester.md), you are the one who
+surfaces the blocker to the human and helps re-scope if needed.
