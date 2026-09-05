@@ -24,6 +24,20 @@
     background: rgba(220,38,38,0.85); color: #fff; font-weight: bold; letter-spacing: 1px;
     display: none; z-index: 21;
   }
+  #current-project {
+    flex: 0 0 auto; background: #0f1420; border-bottom: 2px solid #2d3748; padding: 12px;
+    font-family: 'Courier New', monospace; color: #e2e8f0;
+  }
+  #current-project h3 { margin: 0 0 6px; font-size: 13px; color: #4ade80; }
+  #current-project .title { font-size: 12px; color: #fff; margin-bottom: 4px; }
+  #current-project .stage {
+    display: inline-block; background: #1e3a5f; color: #93c5fd; font-size: 10px;
+    padding: 2px 8px; border-radius: 2px; letter-spacing: 0.5px; margin-right: 6px;
+  }
+  #current-project .waiting { color: #fca5a5; font-size: 10px; }
+  #current-project .none { font-size: 11px; color: #64748b; }
+  #current-project a { color: #93c5fd; font-size: 10px; }
+
   #submit-panel {
     flex: 0 0 auto; background: #0f1420; border-bottom: 2px solid #2d3748; padding: 12px;
     font-family: 'Courier New', monospace; color: #e2e8f0;
@@ -110,6 +124,10 @@
 <div id="app">
   <div id="game-container"></div>
   <div id="sidebar">
+    <div id="current-project">
+      <h3>CURRENT PROJECT</h3>
+      <div id="current-project-body" class="none">Checking...</div>
+    </div>
     <div id="submit-panel">
       <h3>SUBMIT REQUIREMENT</h3>
       <textarea id="req-input" rows="3" placeholder="What should the pipeline build?"></textarea>
@@ -621,11 +639,24 @@ window.retrodevSetWaiting = (reason) => {
     }
   });
 
+  const currentEl = document.getElementById('current-project-body');
+  function renderCurrent(current) {
+    if (!current) { currentEl.className = 'none'; currentEl.innerHTML = 'No open project right now.'; return; }
+    currentEl.className = '';
+    currentEl.innerHTML = `
+      <div class="title">#${current.number} — ${escapeHtml(current.title)}</div>
+      <span class="stage">${escapeHtml(current.stage)}</span>
+      ${current.awaiting_human ? '<span class="waiting">⚠ waiting on you</span>' : ''}
+      <div style="margin-top:4px;"><a href="${current.url}" target="_blank" rel="noopener">view thread on GitHub →</a></div>
+    `;
+  }
+
   async function poll() {
     try {
       const res = await fetch('/api/pipeline-status', { cache: 'no-store' });
       const data = await res.json();
       render(data.pending || []);
+      renderCurrent(data.current || null);
       const pending = data.pending || [];
       if (pending.length !== lastCount) {
         lastCount = pending.length;
