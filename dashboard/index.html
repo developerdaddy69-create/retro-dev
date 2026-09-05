@@ -151,12 +151,16 @@ class PipelineScene extends Phaser.Scene {
 
   preload() {
     // Real CC0 pixel art (Kenney's Tiny Dungeon pack, cropped) -- see
-    // assets/CREDITS.md. Falls back gracefully to nothing drawn if a file
+    // assets/CREDITS.md. Root-absolute paths (not "assets/...") because
+    // "/" is served via a Vercel rewrite to this same file -- a relative
+    // path there resolves against "/" instead of "/dashboard/", 404ing
+    // every image and leaving Phaser's default missing-texture tile in
+    // its place. Falls back gracefully to nothing drawn if a file still
     // 404s, rather than breaking the scene.
-    ROOMS.forEach(room => this.load.image(room.charKey, `assets/characters/${room.name.toLowerCase()}.png`));
-    this.load.image('floor_tile', 'assets/tiles/floor_sand.png');
-    this.load.image('furniture_dresser', 'assets/tiles/dresser.png');
-    this.load.image('furniture_desk', 'assets/tiles/furniture_2.png');
+    ROOMS.forEach(room => this.load.image(room.charKey, `/dashboard/assets/characters/${room.name.toLowerCase()}.png`));
+    this.load.image('floor_tile', '/dashboard/assets/tiles/floor_sand.png');
+    this.load.image('furniture_dresser', '/dashboard/assets/tiles/dresser.png');
+    this.load.image('furniture_desk', '/dashboard/assets/tiles/furniture_2.png');
   }
 
   create() {
