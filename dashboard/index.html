@@ -18,11 +18,68 @@
     --text-dim: #7b8698;
     --danger: #f87171;
     --ok: #4ade80;
+    --warn: #ffb020;
     --sans: 'Space Grotesk', 'Segoe UI', sans-serif;
     --mono: 'JetBrains Mono', 'Courier New', monospace;
   }
   * { box-sizing: border-box; }
   html, body { margin: 0; padding: 0; background: var(--bg); height: 100%; overflow: hidden; font-family: var(--sans); color: var(--text); }
+
+  /* ---------------- Custom cursor (desktop pointer only) ---------------- */
+  body.has-fine-pointer, body.has-fine-pointer a, body.has-fine-pointer button,
+  body.has-fine-pointer .node-label, body.has-fine-pointer canvas { cursor: none; }
+  #cursor-dot, #cursor-ring {
+    position: fixed; top: 0; left: 0; z-index: 9999; pointer-events: none;
+    border-radius: 50%; transform: translate(-50%, -50%); will-change: transform;
+  }
+  #cursor-dot { width: 5px; height: 5px; background: var(--accent); display: none; }
+  #cursor-ring {
+    width: 30px; height: 30px; border: 1px solid rgba(255,255,255,0.55);
+    mix-blend-mode: difference; transition: width 0.22s ease, height 0.22s ease, background 0.22s ease, border-color 0.22s ease;
+    display: none;
+  }
+  #cursor-ring.hover { width: 58px; height: 58px; background: rgba(255,255,255,0.16); border-color: transparent; }
+  body.has-fine-pointer #cursor-dot, body.has-fine-pointer #cursor-ring { display: block; }
+
+  /* ---------------- Film-grain texture over the whole app ---------------- */
+  #grain {
+    position: fixed; inset: 0; z-index: 40; pointer-events: none; opacity: 0.045; mix-blend-mode: overlay;
+    background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='120' height='120'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/></filter><rect width='100%25' height='100%25' filter='url(%23n)'/></svg>");
+  }
+
+  /* ---------------- Kinetic hero title + tech tag chips ---------------- */
+  #hud-top h1 {
+    font-size: 26px; letter-spacing: 1px; text-transform: uppercase;
+  }
+  #tag-row { display: flex; gap: 6px; margin-top: 10px; pointer-events: none; }
+  #tag-row .chip {
+    font-family: var(--mono); font-size: 9px; letter-spacing: 0.6px; color: var(--text-dim);
+    border: 1px solid var(--panel-border); background: rgba(255,255,255,0.03);
+    padding: 4px 8px; border-radius: 4px; text-transform: uppercase;
+  }
+  #tag-row .chip.live { color: var(--ok); border-color: rgba(74,222,128,0.35); }
+  #tag-row .chip.live::before { content: '● '; }
+
+  /* ---------------- Bottom-right time widget ---------------- */
+  #time-widget {
+    position: absolute; right: 20px; bottom: 20px; z-index: 10;
+    background: rgba(5,7,13,0.75); backdrop-filter: blur(6px); border: 1px solid var(--panel-border);
+    border-radius: 10px; padding: 8px 14px; font-family: var(--mono); font-size: 10px; color: var(--text-dim);
+    display: flex; gap: 14px; align-items: center;
+  }
+  #time-widget .val { color: var(--text); }
+  #time-widget .divider { width: 1px; height: 12px; background: var(--panel-border); }
+
+  @keyframes fade-up {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+  .card { animation: fade-up 0.5s ease both; }
+  #sidebar .card:nth-child(1) { animation-delay: 0.02s; }
+  #sidebar .card:nth-child(2) { animation-delay: 0.08s; }
+  #sidebar .card:nth-child(3) { animation-delay: 0.14s; }
+  #sidebar .card:nth-child(4) { animation-delay: 0.2s; }
+  #sidebar .card:nth-child(5) { animation-delay: 0.26s; }
 
   #app { display: flex; flex-direction: row; height: 100vh; }
   #scene-wrap { flex: 1 1 auto; min-width: 0; position: relative; overflow: hidden; }
@@ -54,11 +111,17 @@
   }
 
   #ticker {
-    position: absolute; left: 0; right: 0; bottom: 0; height: 34px; z-index: 10;
-    background: rgba(5,7,13,0.75); backdrop-filter: blur(6px); color: var(--accent);
-    font-family: var(--mono); font-size: 12px; line-height: 34px; white-space: nowrap; overflow: hidden;
-    border-top: 1px solid var(--panel-border);
+    position: absolute; left: 20px; bottom: 20px; z-index: 10; max-width: min(58%, 540px);
+    background: rgba(5,7,13,0.78); backdrop-filter: blur(8px); color: var(--accent);
+    font-family: var(--mono); font-size: 11px; white-space: nowrap; overflow: hidden;
+    border: 1px solid var(--panel-border); border-radius: 999px;
+    display: flex; align-items: center; gap: 10px; padding: 8px 18px 8px 8px;
   }
+  #ticker .tag {
+    font-size: 9px; letter-spacing: 0.5px; background: rgba(110,231,255,0.12); color: var(--accent);
+    border: 1px solid rgba(110,231,255,0.3); border-radius: 999px; padding: 3px 9px; flex: 0 0 auto;
+  }
+  #ticker-viewport { overflow: hidden; flex: 1 1 auto; min-width: 0; }
   #ticker span { display: inline-block; padding-left: 100%; animation: scroll-left 20s linear infinite; }
   @keyframes scroll-left { 0% { transform: translateX(0); } 100% { transform: translateX(-100%); } }
 
@@ -187,17 +250,33 @@
 </style>
 </head>
 <body>
+<div id="cursor-dot"></div>
+<div id="cursor-ring"></div>
+<div id="grain"></div>
 <div id="app">
   <div id="scene-wrap">
     <div id="waiting-banner"></div>
     <div id="hud-top">
       <div>
-        <h1>RETRODEV SYNAPSE</h1>
+        <h1>RetroDev Synapse</h1>
         <div class="sub">Autonomous Agent Pipeline — Live 3D Monitor</div>
+        <div id="tag-row">
+          <span class="chip">webgl / three.js</span>
+          <span class="chip">7 agents</span>
+          <span class="chip live">live</span>
+        </div>
       </div>
     </div>
     <div id="vignette"></div>
-    <div id="ticker"><span id="ticker-text">RetroDev Synapse online — waiting for pipeline events...</span></div>
+    <div id="ticker">
+      <span class="tag">[ feed ]</span>
+      <div id="ticker-viewport"><span id="ticker-text">RetroDev Synapse online — waiting for pipeline events...</span></div>
+    </div>
+    <div id="time-widget">
+      <span>LOCAL_TIME</span><span class="val" id="clock-val">--:--:--</span>
+      <span class="divider"></span>
+      <span>ONLINE</span><span class="val" id="online-count">0/7</span>
+    </div>
   </div>
 
   <div id="sidebar">
@@ -264,6 +343,40 @@ import { CSS2DRenderer, CSS2DObject } from 'three/addons/renderers/CSS2DRenderer
  * glance (who's active, who's blocked on you, what they last did).
  */
 
+// ---------- Custom cursor (magnetic ring, à la saifullah.dev / jesperlandberg.com) ----------
+(function () {
+  const fine = window.matchMedia('(pointer: fine)').matches;
+  if (!fine) return;
+  document.body.classList.add('has-fine-pointer');
+  const dot = document.getElementById('cursor-dot');
+  const ring = document.getElementById('cursor-ring');
+  let mx = window.innerWidth / 2, my = window.innerHeight / 2;
+  let rx = mx, ry = my;
+  window.addEventListener('mousemove', (e) => {
+    mx = e.clientX; my = e.clientY;
+    dot.style.transform = `translate(${mx}px, ${my}px) translate(-50%, -50%)`;
+    const el = document.elementFromPoint(mx, my);
+    const isHoverable = el && el.closest('a, button, .node-label, canvas, input, textarea');
+    ring.classList.toggle('hover', Boolean(isHoverable));
+  });
+  function loop() {
+    rx += (mx - rx) * 0.18;
+    ry += (my - ry) * 0.18;
+    ring.style.transform = `translate(${rx}px, ${ry}px) translate(-50%, -50%)`;
+    requestAnimationFrame(loop);
+  }
+  loop();
+  window.retrodevSetCursorHover = (on) => ring.classList.toggle('hover', on);
+})();
+
+// ---------- Live clock + online-agent count widget ----------
+(function () {
+  const clockEl = document.getElementById('clock-val');
+  function tick() { clockEl.textContent = new Date().toLocaleTimeString([], { hour12: false }); }
+  tick();
+  setInterval(tick, 1000);
+})();
+
 const ROOMS = [
   { key: 'planning_deck',    label: 'Planning Deck',    agent: 'Product Manager', name: 'Priya', color: 0x3b82f6 },
   { key: 'design_studio',    label: 'Design Studio',    agent: 'Designer',        name: 'Dara',  color: 0x14b8a6 },
@@ -305,6 +418,16 @@ controls.maxDistance = 26;
 controls.autoRotate = true;
 controls.autoRotateSpeed = 0.35;
 controls.target.set(0, 0.5, 0);
+// Pause the idle auto-rotate while the visitor is actually driving the camera,
+// like the cover-flow scenes on jesperlandberg.com -- resumes shortly after release.
+let resumeRotateTimer = null;
+controls.addEventListener('start', () => {
+  controls.autoRotate = false;
+  if (resumeRotateTimer) clearTimeout(resumeRotateTimer);
+});
+controls.addEventListener('end', () => {
+  resumeRotateTimer = setTimeout(() => { controls.autoRotate = true; }, 2200);
+});
 
 window.addEventListener('resize', () => {
   camera.aspect = wrap.clientWidth / wrap.clientHeight;
@@ -383,29 +506,57 @@ const glowTex = makeGlowTexture();
 
 const nodeState = {}; // key -> { mesh, glow, ring, label, working, awaiting }
 
+// Core mesh is a floating glass-card panel (rounded box) rather than a plain
+// glowing ball -- closer to the cover-flow panels on jesperlandberg.com.
+const cardGeo = new THREE.BoxGeometry(0.66, 0.9, 0.06, 6, 8, 1);
+// Round off the box's corners by pulling vertices toward a superellipse profile.
+{
+  const pos = cardGeo.attributes.position;
+  const rx = 0.66 / 2, ry = 0.9 / 2, radius = 0.12;
+  for (let vi = 0; vi < pos.count; vi++) {
+    const x = pos.getX(vi), y = pos.getY(vi);
+    const ax = Math.abs(x), ay = Math.abs(y);
+    const overX = Math.max(0, ax - (rx - radius));
+    const overY = Math.max(0, ay - (ry - radius));
+    if (overX > 0 && overY > 0) {
+      const len = Math.hypot(overX, overY);
+      const scale = len > 0 ? Math.min(1, radius / len) : 1;
+      pos.setX(vi, Math.sign(x) * (rx - radius + overX * scale));
+      pos.setY(vi, Math.sign(y) * (ry - radius + overY * scale));
+    }
+  }
+  cardGeo.computeVertexNormals();
+}
+
 ROOMS.forEach((room, i) => {
   const pos = positions[i];
   const group = new THREE.Group();
   group.position.copy(pos);
   scene.add(group);
 
-  const geo = new THREE.IcosahedronGeometry(0.34, 1);
   const mat = new THREE.MeshStandardMaterial({
-    color: room.color, emissive: room.color, emissiveIntensity: 0.35,
-    metalness: 0.4, roughness: 0.25,
+    color: room.color, emissive: room.color, emissiveIntensity: 0.3,
+    metalness: 0.55, roughness: 0.3, transparent: true, opacity: 0.92,
   });
-  const mesh = new THREE.Mesh(geo, mat);
+  const mesh = new THREE.Mesh(cardGeo, mat);
   mesh.userData.roomKey = room.key;
   group.add(mesh);
 
+  // Crisp bright edge outline -- the "glass panel" cue from the reference sites.
+  const edges = new THREE.LineSegments(
+    new THREE.EdgesGeometry(cardGeo),
+    new THREE.LineBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.35 })
+  );
+  mesh.add(edges);
+
   const glow = new THREE.Sprite(new THREE.SpriteMaterial({
-    map: glowTex, color: room.color, transparent: true, opacity: 0.55, depthWrite: false,
+    map: glowTex, color: room.color, transparent: true, opacity: 0.5, depthWrite: false,
   }));
-  glow.scale.set(1.6, 1.6, 1.6);
+  glow.scale.set(1.7, 1.7, 1.7);
   group.add(glow);
 
   // Thin ring shown only when awaiting-human (a distinct alert cue)
-  const ringGeo = new THREE.TorusGeometry(0.52, 0.015, 8, 48);
+  const ringGeo = new THREE.TorusGeometry(0.56, 0.015, 8, 48);
   const ringMat = new THREE.MeshBasicMaterial({ color: 0xf87171, transparent: true, opacity: 0 });
   const ring = new THREE.Mesh(ringGeo, ringMat);
   ring.rotation.x = Math.PI / 2.2;
@@ -416,10 +567,13 @@ ROOMS.forEach((room, i) => {
   el.innerHTML = `<div><span class="dot"></span><span class="name">${room.name}</span></div><div class="role">${room.agent}</div>`;
   el.addEventListener('click', () => selectRoom(room.key));
   const label = new CSS2DObject(el);
-  label.position.set(0, -0.7, 0);
+  label.position.set(0, -0.75, 0);
   group.add(label);
 
-  nodeState[room.key] = { group, mesh, glow, ring, labelEl: el, working: false, awaiting: false, room };
+  nodeState[room.key] = {
+    group, mesh, glow, ring, labelEl: el, working: false, awaiting: false, room,
+    baseRotY: (Math.random() - 0.5) * 0.3, hovered: false,
+  };
 });
 
 // ---------- Handoff pulse: a small glowing sphere traveling the curve ----------
@@ -478,16 +632,29 @@ function escapeHtml(s) {
   return String(s).replace(/[&<>"']/g, (c) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 }
 
-// Raycast click-to-select directly on the 3D nodes too (not just labels)
+// Raycast click-to-select directly on the 3D nodes too (not just labels),
+// plus a continuous hover raycast so cards tilt toward the cursor like the
+// cover-flow panels on jesperlandberg.com.
 const raycaster = new THREE.Raycaster();
 const pointer = new THREE.Vector2();
-renderer.domElement.addEventListener('click', (e) => {
+function pointerFromEvent(e) {
   const rect = renderer.domElement.getBoundingClientRect();
   pointer.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
   pointer.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
+}
+renderer.domElement.addEventListener('click', (e) => {
+  pointerFromEvent(e);
   raycaster.setFromCamera(pointer, camera);
   const hits = raycaster.intersectObjects(Object.values(nodeState).map((n) => n.mesh));
   if (hits.length) selectRoom(hits[0].object.userData.roomKey);
+});
+renderer.domElement.addEventListener('mousemove', (e) => {
+  pointerFromEvent(e);
+  raycaster.setFromCamera(pointer, camera);
+  const hits = raycaster.intersectObjects(Object.values(nodeState).map((n) => n.mesh));
+  const hitKey = hits.length ? hits[0].object.userData.roomKey : null;
+  Object.entries(nodeState).forEach(([key, n]) => { n.hovered = key === hitKey; });
+  renderer.domElement.style.cursor = 'default';
 });
 
 // ---------- Public API used by the pollers below ----------
@@ -515,6 +682,8 @@ function playEvent(roomKey, text) {
   lastActiveForPulse = key;
   if (selectedKey === key) renderAgentDetail(key);
   ticker(text);
+  const countEl = document.getElementById('online-count');
+  if (countEl) countEl.textContent = `${Object.keys(lastMessageByRoom).length}/${ROOMS.length}`;
 }
 
 function ticker(text) {
@@ -535,19 +704,28 @@ window.retrodevSetAwaitingRoom = setAwaitingRoom;
 
 // ---------- Render loop ----------
 const clock = new THREE.Clock();
+function lerp(a, b, n) { return a + (b - a) * n; }
 function animate() {
   requestAnimationFrame(animate);
   const t = clock.getElapsedTime();
   Object.values(nodeState).forEach((n) => {
     const pulse = n.working ? (1 + Math.sin(t * 3) * 0.12) : 1;
-    n.mesh.rotation.y += n.working ? 0.02 : 0.004;
-    n.mesh.rotation.x += 0.003;
-    n.mesh.material.emissiveIntensity = n.working ? 0.9 + Math.sin(t * 3) * 0.3 : 0.25;
-    n.glow.scale.setScalar(1.6 * pulse * (n.working ? 1.15 : 1));
+    // Gentle float + a subtle idle sway; tilt toward the camera on hover
+    // (the cover-flow "lean in" cue from jesperlandberg.com).
+    n.group.position.y = n.group.userData.baseY ?? (n.group.userData.baseY = n.group.position.y);
+    n.group.position.y = n.group.userData.baseY + Math.sin(t * 0.8 + n.baseRotY * 10) * 0.06;
+    const targetTiltY = n.hovered ? n.baseRotY * 2 + Math.sin(t * 2) * 0.05 : n.baseRotY;
+    const targetTiltX = n.hovered ? -0.12 : 0;
+    n.mesh.rotation.y = lerp(n.mesh.rotation.y, targetTiltY, 0.08);
+    n.mesh.rotation.x = lerp(n.mesh.rotation.x, targetTiltX, 0.08);
+    n.mesh.material.emissiveIntensity = n.working ? 0.9 + Math.sin(t * 3) * 0.3 : (n.hovered ? 0.55 : 0.3);
+    n.glow.scale.setScalar(1.7 * pulse * (n.working ? 1.15 : 1));
     n.ring.material.opacity = n.awaiting ? 0.55 + Math.sin(t * 4) * 0.35 : 0;
     n.ring.scale.setScalar(1 + (n.awaiting ? Math.sin(t * 4) * 0.05 : 0));
-    if (n.mesh.scale.x < (n.room.key === selectedKey ? 1.25 : 1)) n.mesh.scale.addScalar(0.02);
-    else if (n.mesh.scale.x > (n.room.key === selectedKey ? 1.25 : 1)) n.mesh.scale.addScalar(-0.02);
+    const targetScale = (n.room.key === selectedKey ? 1.25 : (n.hovered ? 1.1 : 1));
+    n.mesh.scale.x = lerp(n.mesh.scale.x, targetScale, 0.15);
+    n.mesh.scale.y = lerp(n.mesh.scale.y, targetScale, 0.15);
+    n.mesh.scale.z = lerp(n.mesh.scale.z, targetScale, 0.15);
   });
   controls.update();
   renderer.render(scene, camera);
