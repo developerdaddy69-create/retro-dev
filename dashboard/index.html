@@ -261,7 +261,7 @@ class PipelineScene extends Phaser.Scene {
 
       const entry = {
         sprite, room, working: false, wandering: true,
-        chairPos: { x: chairX, y: chairY }, workTimer: null, bobTween: null,
+        chairPos: { x: chairX, y: chairY }, bobTween: null,
       };
       this.roomSprites[room.key] = entry;
 
@@ -351,17 +351,17 @@ class PipelineScene extends Phaser.Scene {
 
   // Toggles an agent between "working" (seated at their own desk, laptop
   // lit, small typing bob) and "relaxing" (free-roaming the shared floor,
-  // occasional tea break) -- driven by real pipeline activity, not a timer
-  // for its own sake: working=true resets a 20s idle timeout each time a
-  // fresh event lands, so the pose tracks actual activity.
+  // occasional tea break) -- driven by real pipeline activity. Once an
+  // agent starts working they stay at their desk indefinitely -- no
+  // auto-revert timer -- since a real pipeline stage can be genuinely
+  // done with them (e.g. PM after locking the PRD) without another event
+  // ever landing in their room again; only an explicit setWorking(key,
+  // false) call would send them back to the break room.
   setWorking(key, working) {
     const entry = this.roomSprites[key];
     if (!entry) return;
 
-    if (entry.workTimer) { entry.workTimer.remove(false); entry.workTimer = null; }
-    if (working) entry.workTimer = this.time.delayedCall(20000, () => this.setWorking(key, false));
-
-    if (entry.working === working) return; // already in that state, timer just refreshed
+    if (entry.working === working) return; // already in that state, nothing to do
     entry.working = working;
     entry.wandering = !working;
 
