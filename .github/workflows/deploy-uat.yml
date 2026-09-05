@@ -22,12 +22,10 @@ jobs:
       - name: Install Vercel CLI
         run: npm install --global vercel@latest
 
+      # Replace uat.example.vercel.app below with your actual UAT alias domain.
       - name: Promote preview to UAT alias
-        run: |
-          vercel alias set "${{ github.event.inputs.preview_url }}" uat.example.vercel.app \
-            --token=${{ secrets.VERCEL_TOKEN }}
-          # Replace uat.example.vercel.app with your actual UAT alias domain.
+        run: vercel alias set "${{ github.event.inputs.preview_url }}" uat.example.vercel.app --token=${{ secrets.VERCEL_TOKEN }}
 
+      # UAT Coordinator agent picks this up and opens the uat-checklist issue.
       - name: Emit uat_deploy_ready event
-        run: echo "uat_deploy_ready: https://uat.example.vercel.app"
-        # UAT Coordinator agent picks this up and opens the uat-checklist issue.
+        run: echo uat_deploy_ready https://uat.example.vercel.app
