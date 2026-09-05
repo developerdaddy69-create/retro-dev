@@ -24,6 +24,17 @@ land; each has a status: `done`, `in progress`, `blocked (needs you)`.
       human-approved `docs/DESIGN.v{n}.md`, asks PM (PRD) or Designer
       (design) when ambiguous, implements the named animation
       library for real rather than a static approximation
+- [x] **Policy update 2026-09-05**: Three.js is now mandatory (not one
+      option among several) for every design's 3D hero — Spline only
+      allowed as a supplementary decorative asset. "Reads as a normal/
+      generic website" is an explicit failure condition across
+      `designer.md`, `developer.md`, and the live automation endpoint's
+      system prompt, not a style preference. Performance (polygon/texture
+      budget, lazy-loading, `prefers-reduced-motion` fallback) and data
+      privacy (what user data is visible per screen, no over-exposure,
+      no raw payment storage) are now first-class spec/build/QA
+      requirements, not implicit assumptions — QA checks both every
+      round, not just at the end.
 - [x] `qa-tester.md` — resolve-until-done loop (v6 §4), visibility summaries,
       deadlock detection
 - [x] `devops.md` — dev deploy, smoke tests, UAT deploy
