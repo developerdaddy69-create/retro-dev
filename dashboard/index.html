@@ -141,8 +141,6 @@ class PipelineScene extends Phaser.Scene {
 
     // Package sprite used for handoff / loop animations between rooms
     this.package = this.add.rectangle(-100, -100, 16, 16, 0xffffff);
-
-    this.startMockFeed();
   }
 
   showBubble(roomKey, text, color = '#e2e8f0') {
@@ -183,30 +181,12 @@ class PipelineScene extends Phaser.Scene {
     document.getElementById('ticker-text').textContent = text;
   }
 
-  // --- Mock event feed: replace with real WebSocket relay in Phase 4 ---
-  startMockFeed() {
-    const steps = [
-      () => { this.showBubble('planning_deck', 'Q1: what is "fast" search?', '#93c5fd'); this.ticker('Product Manager: intake round 1 — awaiting your answer'); },
-      () => { this.setWaiting('answer Product Manager\'s clarifying questions'); },
-      () => { this.setWaiting(null); this.showBubble('planning_deck', 'PRD v1 locked ✓', '#4ade80'); this.walkPackage('planning_deck', 'code_vault', 0x3b82f6); },
-      () => { this.showBubble('code_vault', 'Building from PRD v1...', '#fbbf24'); },
-      () => { this.showBubble('code_vault', 'Q: latency target unclear — asking PM', '#fbbf24'); this.walkPackage('code_vault', 'planning_deck', 0xf59e0b); },
-      () => { this.showBubble('planning_deck', 'A: <200ms per PRD §3', '#93c5fd'); this.walkPackage('planning_deck', 'code_vault', 0x3b82f6); },
-      () => { this.walkPackage('code_vault', 'sandbox_lab', 0xf59e0b); this.showBubble('sandbox_lab', 'Testing build v1...', '#fca5a5'); },
-      () => { this.showBubble('sandbox_lab', 'Issue found: round 1', '#f87171'); this.walkPackage('sandbox_lab', 'code_vault', 0xef4444); this.ticker('QA <-> Developer: cycling (round 1) — 1 issue found so far'); },
-      () => { this.showBubble('code_vault', 'Fix pushed', '#fbbf24'); this.walkPackage('code_vault', 'sandbox_lab', 0xf59e0b); },
-      () => { this.showBubble('sandbox_lab', 'QA passed ✓', '#4ade80'); this.walkPackage('sandbox_lab', 'deploy_bay', 0xef4444); },
-      () => { this.showBubble('deploy_bay', 'Deploying to Dev...', '#c4b5fd'); },
-      () => { this.walkPackage('deploy_bay', 'uat_lounge', 0x8b5cf6); this.showBubble('uat_lounge', 'Running UAT checklist...', '#67e8f9'); },
-      () => { this.setWaiting('go/no-go on UAT results'); },
-      () => { this.setWaiting(null); this.walkPackage('uat_lounge', 'broadcast_studio', 0x06b6d4); this.showBubble('broadcast_studio', 'Drafting launch copy...', '#f9a8d4'); },
-      () => { this.setWaiting('approve marketing copy before publish'); },
-    ];
-    let i = 0;
-    this.time.addEvent({
-      delay: 3000, loop: true,
-      callback: () => { steps[i % steps.length](); i++; }
-    });
+  // Plays one real event from /api/pipeline-events (see the poller below,
+  // driven by GitHub's actual activity feed instead of a scripted demo).
+  playEvent(room, text) {
+    if (!this.roomSprites[room]) room = 'code_vault'; // fallback for unmapped rooms
+    this.showBubble(room, text, '#e2e8f0');
+    this.ticker(text);
   }
 }
 
@@ -218,11 +198,19 @@ const retrodevGame = new Phaser.Game({
   backgroundColor: '#0b0e14',
   scene: [PipelineScene]
 });
-// Exposed so the real-status poller below can drive the same ticker the
-// mock feed uses, without them needing to know about each other directly.
+// Exposed so the real-event pollers below can drive the Phaser scene
+// without needing to know about it directly.
 window.retrodevTicker = (text) => {
   const scene = retrodevGame.scene.keys.pipeline;
   if (scene) scene.ticker(text);
+};
+window.retrodevPlayEvent = (room, text) => {
+  const scene = retrodevGame.scene.keys.pipeline;
+  if (scene) scene.playEvent(room, text);
+};
+window.retrodevSetWaiting = (reason) => {
+  const scene = retrodevGame.scene.keys.pipeline;
+  if (scene) scene.setWaiting(reason);
 };
 
 // --- Requirement submission form -> /api/submit-requirement ---
@@ -361,11 +349,40 @@ window.retrodevTicker = (text) => {
       const res = await fetch('/api/pipeline-status', { cache: 'no-store' });
       const data = await res.json();
       render(data.pending || []);
-      if (data.pending && data.pending.length !== lastCount) {
-        lastCount = data.pending.length;
+      const pending = data.pending || [];
+      if (pending.length !== lastCount) {
+        lastCount = pending.length;
         window.retrodevTicker && window.retrodevTicker(
           lastCount ? `${lastCount} item(s) need your confirmation` : 'All clear — nothing waiting on you'
         );
+      }
+      window.retrodevSetWaiting && window.retrodevSetWaiting(
+        pending.length ? `#${pending[0].number} — ${pending[0].title}` : null
+      );
+    } catch (e) { /* transient network errors: just try again next poll */ }
+  }
+  poll();
+  setInterval(poll, 15000);
+})();
+
+// --- Poll /api/pipeline-events for the real room animations ---
+// Replaces the old scripted mock sequence with GitHub's actual activity.
+(function () {
+  const lastSeenKey = 'retrodev_last_event_ts';
+  let lastSeen = localStorage.getItem(lastSeenKey) || '';
+
+  async function poll() {
+    try {
+      const res = await fetch('/api/pipeline-events', { cache: 'no-store' });
+      const data = await res.json();
+      const events = data.events || [];
+      const fresh = lastSeen ? events.filter((e) => e.ts > lastSeen) : events.slice(-3);
+      fresh.forEach((e, i) => {
+        setTimeout(() => window.retrodevPlayEvent && window.retrodevPlayEvent(e.room, e.text), i * 1500);
+      });
+      if (events.length) {
+        lastSeen = events[events.length - 1].ts;
+        localStorage.setItem(lastSeenKey, lastSeen);
       }
     } catch (e) { /* transient network errors: just try again next poll */ }
   }
