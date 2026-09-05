@@ -52,6 +52,16 @@ land; each has a status: `done`, `in progress`, `blocked (needs you)`.
       further events); otherwise they free-roam the whole floor and
       occasionally pause for a drawn teacup ("tea break"). Verified live:
       triggering a test event visibly walks the agent to their desk.
+- [x] Real office layout: split the floor into a distinct WORK ZONE (desk
+      rows, green tint) and BREAK ROOM (coffee machine + benches, blue
+      tint) with an aisle divider between them. "Relaxing" now specifically
+      means walking over to the break room to mingle/have a coffee, not
+      roaming the whole floor — desks stay empty until a real event seats
+      that agent back at their own desk. Coffee machine + bench sprites are
+      procedurally drawn (Kenney's pack has neither). Verified live:
+      default state clusters everyone in the break room; triggering an
+      event visibly walks that one agent back to their desk while the
+      rest stay on break.
       see [dashboard/assets/CREDITS.md](dashboard/assets/CREDITS.md).
 
 ## Phase 4 — Live wiring (blocked — needs accounts/credentials only you can create)
