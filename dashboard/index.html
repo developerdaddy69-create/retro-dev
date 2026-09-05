@@ -131,16 +131,26 @@
  */
 
 const ROOMS = [
-  { key: 'planning_deck',    label: 'Planning Deck',    agent: 'Product Manager', name: 'Priya', color: 0x3b82f6, x: 140, y: 120 },
-  { key: 'code_vault',       label: 'Code Vault',       agent: 'Developer',       name: 'Dev',   color: 0xf59e0b, x: 420, y: 120 },
-  { key: 'sandbox_lab',      label: 'Sandbox Lab',      agent: 'QA Tester',       name: 'Quinn', color: 0xef4444, x: 700, y: 120 },
-  { key: 'deploy_bay',       label: 'Deploy Bay',       agent: 'DevOps',          name: 'Devon', color: 0x8b5cf6, x: 140, y: 380 },
-  { key: 'uat_lounge',       label: 'UAT Lounge',       agent: 'UAT Coordinator', name: 'Uma',   color: 0x06b6d4, x: 420, y: 380 },
-  { key: 'broadcast_studio', label: 'Broadcast Studio', agent: 'Social Expert',   name: 'Sasha', color: 0xec4899, x: 700, y: 380 },
+  { key: 'planning_deck',    label: 'Planning Deck',    agent: 'Product Manager', name: 'Priya', charKey: 'char_priya', color: 0x3b82f6, x: 140, y: 120 },
+  { key: 'code_vault',       label: 'Code Vault',       agent: 'Developer',       name: 'Dev',   charKey: 'char_dev',   color: 0xf59e0b, x: 420, y: 120 },
+  { key: 'sandbox_lab',      label: 'Sandbox Lab',      agent: 'QA Tester',       name: 'Quinn', charKey: 'char_quinn', color: 0xef4444, x: 700, y: 120 },
+  { key: 'deploy_bay',       label: 'Deploy Bay',       agent: 'DevOps',          name: 'Devon', charKey: 'char_devon', color: 0x8b5cf6, x: 140, y: 380 },
+  { key: 'uat_lounge',       label: 'UAT Lounge',       agent: 'UAT Coordinator', name: 'Uma',   charKey: 'char_uma',   color: 0x06b6d4, x: 420, y: 380 },
+  { key: 'broadcast_studio', label: 'Broadcast Studio', agent: 'Social Expert',   name: 'Sasha', charKey: 'char_sasha', color: 0xec4899, x: 700, y: 380 },
 ];
 
 class PipelineScene extends Phaser.Scene {
   constructor() { super('pipeline'); }
+
+  preload() {
+    // Real CC0 pixel art (Kenney's Tiny Dungeon pack, cropped) -- see
+    // assets/CREDITS.md. Falls back gracefully to nothing drawn if a file
+    // 404s, rather than breaking the scene.
+    ROOMS.forEach(room => this.load.image(room.charKey, `assets/characters/${room.name.toLowerCase()}.png`));
+    this.load.image('floor_tile', 'assets/tiles/floor_sand.png');
+    this.load.image('furniture_dresser', 'assets/tiles/dresser.png');
+    this.load.image('furniture_desk', 'assets/tiles/furniture_2.png');
+  }
 
   create() {
     this.roomSprites = {};
@@ -150,18 +160,22 @@ class PipelineScene extends Phaser.Scene {
       fontFamily: 'Courier New', fontSize: '20px', color: '#4ade80'
     });
 
-    ROOMS.forEach(room => {
-      // Room floor
-      this.add.rectangle(room.x, room.y, 200, 140, 0x1a1f2b).setStrokeStyle(2, 0x2d3748);
+    ROOMS.forEach((room, i) => {
+      // Room floor: real tiled pixel-art texture instead of a flat rectangle.
+      const floor = this.add.tileSprite(room.x, room.y, 200, 140, 'floor_tile');
+      this.add.rectangle(room.x, room.y, 200, 140).setStrokeStyle(2, 0x2d3748);
       this.add.text(room.x - 90, room.y - 65, room.label.toUpperCase(), {
-        fontFamily: 'Courier New', fontSize: '12px', color: '#94a3b8'
+        fontFamily: 'Courier New', fontSize: '12px', color: '#000000', backgroundColor: '#ffffffaa', padding: { x: 3, y: 1 }
       });
 
-      // Agent sprite: a small humanoid (head + body), placeholder shapes
-      // colored per role -- swap for a real Kenney.nl character sheet later.
-      const body = this.add.rectangle(0, 8, 24, 22, room.color).setStrokeStyle(2, 0xffffff);
-      const head = this.add.circle(0, -11, 9, room.color).setStrokeStyle(2, 0xffffff);
-      const sprite = this.add.container(room.x, room.y + 10, [body, head]);
+      // A small furniture piece as room decoration (alternate two styles).
+      const furnitureKey = i % 2 === 0 ? 'furniture_dresser' : 'furniture_desk';
+      this.add.image(room.x + 78, room.y - 55, furnitureKey).setScale(2).setOrigin(0.5, 1);
+
+      // Agent sprite: real chibi character art, colored/styled per role
+      // (Kenney's Tiny Dungeon pack -- see assets/CREDITS.md).
+      const sprite = this.add.image(room.x, room.y + 10, room.charKey).setScale(2);
+
       this.add.text(room.x - 55, room.y + 40, `${room.name} — ${room.agent}`, {
         fontFamily: 'Courier New', fontSize: '11px', color: '#e2e8f0'
       });
@@ -182,6 +196,7 @@ class PipelineScene extends Phaser.Scene {
   // Random-walks a sprite around its room's floor, pausing between moves,
   // so agents look like they're pacing/thinking rather than static icons.
   wander(sprite, room) {
+    const BASE_SCALE = 2;
     const minX = room.x - 75, maxX = room.x + 75;
     const minY = room.y - 20, maxY = room.y + 15;
     const step = () => {
@@ -189,7 +204,7 @@ class PipelineScene extends Phaser.Scene {
       const ty = Phaser.Math.Between(minY, maxY);
       const dist = Phaser.Math.Distance.Between(sprite.x, sprite.y, tx, ty);
       const duration = Phaser.Math.Clamp(dist * 15, 500, 2400);
-      sprite.setScale(tx < sprite.x ? -1 : 1, 1);
+      sprite.setScale(tx < sprite.x ? -BASE_SCALE : BASE_SCALE, BASE_SCALE);
       this.tweens.add({
         targets: sprite, x: tx, y: ty, duration, ease: 'Sine.easeInOut',
         onComplete: () => this.time.delayedCall(Phaser.Math.Between(1000, 3000), step)
