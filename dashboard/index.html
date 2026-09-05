@@ -579,7 +579,12 @@ window.retrodevSetWaiting = (reason) => {
 // Replaces the old scripted mock sequence with GitHub's actual activity.
 (function () {
   const lastSeenKey = 'retrodev_last_event_ts';
+  // lastSeen is persisted per browser ORIGIN (not per page path), so a
+  // prior visit to /dashboard/index.html already advances it -- only used
+  // below to avoid re-playing old scene animations, never to hide history
+  // from the log itself (the log always shows what's actually fetched).
   let lastSeen = localStorage.getItem(lastSeenKey) || '';
+  const shownInLog = new Set(); // ts values already appended this page load
 
   const ROOM_META = {
     planning_deck:    { label: 'Priya (Product Manager)', color: '#3b82f6' },
@@ -617,10 +622,23 @@ window.retrodevSetWaiting = (reason) => {
       const res = await fetch('/api/pipeline-events', { cache: 'no-store' });
       const data = await res.json();
       const events = data.events || [];
-      const fresh = lastSeen ? events.filter((e) => e.ts > lastSeen) : events;
-      fresh.forEach((e, i) => {
+      // The log always shows every event this poll actually returned (up
+      // to the API's last-20 cap), deduped only against what THIS page
+      // load has already appended -- so reloading always shows recent
+      // history instead of "nothing new since last visit." The persisted
+      // lastSeen cursor is used separately, only to avoid re-playing scene
+      // animations (character walks/bubbles) for events already animated
+      // in a previous visit.
+      const toLog = events.filter((e) => !shownInLog.has(e.ts));
+      let animateDelay = 0;
+      toLog.forEach((e) => {
+        shownInLog.add(e.ts);
         appendToLog(e);
-        setTimeout(() => window.retrodevPlayEvent && window.retrodevPlayEvent(e.room, e.text), i * 1500);
+        if (!lastSeen || e.ts > lastSeen) {
+          const delay = animateDelay;
+          animateDelay += 1500;
+          setTimeout(() => window.retrodevPlayEvent && window.retrodevPlayEvent(e.room, e.text), delay);
+        }
       });
       if (events.length) {
         lastSeen = events[events.length - 1].ts;
