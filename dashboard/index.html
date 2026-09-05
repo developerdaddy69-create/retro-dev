@@ -131,12 +131,12 @@
  */
 
 const ROOMS = [
-  { key: 'planning_deck',    label: 'Planning Deck',    agent: 'Product Manager', color: 0x3b82f6, x: 140, y: 120 },
-  { key: 'code_vault',       label: 'Code Vault',       agent: 'Developer',       color: 0xf59e0b, x: 420, y: 120 },
-  { key: 'sandbox_lab',      label: 'Sandbox Lab',      agent: 'QA Tester',       color: 0xef4444, x: 700, y: 120 },
-  { key: 'deploy_bay',       label: 'Deploy Bay',       agent: 'DevOps',          color: 0x8b5cf6, x: 140, y: 380 },
-  { key: 'uat_lounge',       label: 'UAT Lounge',       agent: 'UAT Coordinator', color: 0x06b6d4, x: 420, y: 380 },
-  { key: 'broadcast_studio', label: 'Broadcast Studio', agent: 'Social Expert',   color: 0xec4899, x: 700, y: 380 },
+  { key: 'planning_deck',    label: 'Planning Deck',    agent: 'Product Manager', name: 'Priya', color: 0x3b82f6, x: 140, y: 120 },
+  { key: 'code_vault',       label: 'Code Vault',       agent: 'Developer',       name: 'Dev',   color: 0xf59e0b, x: 420, y: 120 },
+  { key: 'sandbox_lab',      label: 'Sandbox Lab',      agent: 'QA Tester',       name: 'Quinn', color: 0xef4444, x: 700, y: 120 },
+  { key: 'deploy_bay',       label: 'Deploy Bay',       agent: 'DevOps',          name: 'Devon', color: 0x8b5cf6, x: 140, y: 380 },
+  { key: 'uat_lounge',       label: 'UAT Lounge',       agent: 'UAT Coordinator', name: 'Uma',   color: 0x06b6d4, x: 420, y: 380 },
+  { key: 'broadcast_studio', label: 'Broadcast Studio', agent: 'Social Expert',   name: 'Sasha', color: 0xec4899, x: 700, y: 380 },
 ];
 
 class PipelineScene extends Phaser.Scene {
@@ -157,21 +157,45 @@ class PipelineScene extends Phaser.Scene {
         fontFamily: 'Courier New', fontSize: '12px', color: '#94a3b8'
       });
 
-      // Agent sprite (placeholder rectangle; swap for Kenney.nl character sheet)
-      const sprite = this.add.rectangle(room.x, room.y + 10, 36, 36, room.color);
-      sprite.setStrokeStyle(2, 0xffffff);
-      this.add.text(room.x - 30, room.y + 40, room.agent, {
+      // Agent sprite: a small humanoid (head + body), placeholder shapes
+      // colored per role -- swap for a real Kenney.nl character sheet later.
+      const body = this.add.rectangle(0, 8, 24, 22, room.color).setStrokeStyle(2, 0xffffff);
+      const head = this.add.circle(0, -11, 9, room.color).setStrokeStyle(2, 0xffffff);
+      const sprite = this.add.container(room.x, room.y + 10, [body, head]);
+      this.add.text(room.x - 55, room.y + 40, `${room.name} — ${room.agent}`, {
         fontFamily: 'Courier New', fontSize: '11px', color: '#e2e8f0'
       });
 
-      // Idle animation
-      this.tweens.add({ targets: sprite, y: room.y + 4, duration: 900, yoyo: true, repeat: -1, ease: 'Sine.easeInOut' });
+      // Idle wander: each agent ambles around its own room floor instead of
+      // just bobbing in place, so the office reads as "alive" like ChatDev's
+      // characters walking between desks. Staggered start so they don't all
+      // move in lockstep.
+      this.time.delayedCall(Phaser.Math.Between(0, 1500), () => this.wander(sprite, room));
 
       this.roomSprites[room.key] = { sprite, room };
     });
 
     // Package sprite used for handoff / loop animations between rooms
     this.package = this.add.rectangle(-100, -100, 16, 16, 0xffffff);
+  }
+
+  // Random-walks a sprite around its room's floor, pausing between moves,
+  // so agents look like they're pacing/thinking rather than static icons.
+  wander(sprite, room) {
+    const minX = room.x - 75, maxX = room.x + 75;
+    const minY = room.y - 5, maxY = room.y + 55;
+    const step = () => {
+      const tx = Phaser.Math.Between(minX, maxX);
+      const ty = Phaser.Math.Between(minY, maxY);
+      const dist = Phaser.Math.Distance.Between(sprite.x, sprite.y, tx, ty);
+      const duration = Phaser.Math.Clamp(dist * 15, 500, 2400);
+      sprite.setScale(tx < sprite.x ? -1 : 1, 1);
+      this.tweens.add({
+        targets: sprite, x: tx, y: ty, duration, ease: 'Sine.easeInOut',
+        onComplete: () => this.time.delayedCall(Phaser.Math.Between(1000, 3000), step)
+      });
+    };
+    step();
   }
 
   showBubble(roomKey, text, color = '#e2e8f0') {
@@ -405,12 +429,12 @@ window.retrodevSetWaiting = (reason) => {
   let lastSeen = localStorage.getItem(lastSeenKey) || '';
 
   const ROOM_META = {
-    planning_deck:    { label: 'Product Manager', color: '#3b82f6' },
-    code_vault:       { label: 'Developer',       color: '#f59e0b' },
-    sandbox_lab:      { label: 'QA Tester',       color: '#ef4444' },
-    deploy_bay:       { label: 'DevOps',          color: '#8b5cf6' },
-    uat_lounge:       { label: 'UAT Coordinator', color: '#06b6d4' },
-    broadcast_studio: { label: 'Social Expert',   color: '#ec4899' },
+    planning_deck:    { label: 'Priya (Product Manager)', color: '#3b82f6' },
+    code_vault:       { label: 'Dev (Developer)',         color: '#f59e0b' },
+    sandbox_lab:      { label: 'Quinn (QA Tester)',       color: '#ef4444' },
+    deploy_bay:       { label: 'Devon (DevOps)',          color: '#8b5cf6' },
+    uat_lounge:       { label: 'Uma (UAT Coordinator)',   color: '#06b6d4' },
+    broadcast_studio: { label: 'Sasha (Social Expert)',   color: '#ec4899' },
   };
   const logEl = document.getElementById('dialogue-log');
   const MAX_LOG_ENTRIES = 100;
