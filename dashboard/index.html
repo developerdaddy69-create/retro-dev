@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<title>RetroDev Synapse — Pipeline Dashboard</title>
+<style>
+  html, body { margin: 0; padding: 0; background: #0b0e14; overflow: hidden; font-family: 'Courier New', monospace; }
+  #game-container { width: 100vw; height: 100vh; }
+  #ticker {
+    position: fixed; left: 0; right: 0; bottom: 0; height: 28px;
+    background: #000; color: #4ade80; font-size: 13px; line-height: 28px;
+    white-space: nowrap; overflow: hidden; border-top: 2px solid #4ade80;
+  }
+  #ticker span { display: inline-block; padding-left: 100%; animation: scroll-left 18s linear infinite; }
+  @keyframes scroll-left { 0% { transform: translateX(0); } 100% { transform: translateX(-100%); } }
+  #waiting-banner {
+    position: fixed; top: 0; left: 0; right: 0; padding: 10px; text-align: center;
+    background: rgba(220,38,38,0.85); color: #fff; font-weight: bold; letter-spacing: 1px;
+    display: none; z-index: 10;
+  }
+</style>
+</head>
+<body>
+<div id="waiting-banner"></div>
+<div id="game-container"></div>
+<div id="ticker"><span id="ticker-text">RetroDev Synapse online — waiting for pipeline events...</span></div>
+
+<!-- Phaser 3, free/MIT. Swap to a pinned local copy before production use. -->
+<script src="https://cdn.jsdelivr.net/npm/phaser@3.70.0/dist/phaser.min.js"></script>
+<script>
+/*
+ * Retro pipeline dashboard skeleton (Phase 3 of PROGRESS.md).
+ *
+ * Rooms are placeholder colored rectangles + labels for now — swap in
+ * Kenney.nl (CC0) tile/sprite sheets and a Tiled-exported map once the
+ * real webhook relay (Phase 4) is wired up. The event feed below is a
+ * MOCK to prove the rendering model end-to-end; replace `mockEventFeed`
+ * with a WebSocket listener pointed at the Cloudflare Workers relay from
+ * MANIFEST_PLAN_V5.md §5 / V6.md §5.
+ */
+
+const ROOMS = [
+  { key: 'planning_deck',    label: 'Planning Deck',    agent: 'Product Manager', color: 0x3b82f6, x: 140, y: 120 },
+  { key: 'code_vault',       label: 'Code Vault',       agent: 'Developer',       color: 0xf59e0b, x: 420, y: 120 },
+  { key: 'sandbox_lab',      label: 'Sandbox Lab',      agent: 'QA Tester',       color: 0xef4444, x: 700, y: 120 },
+  { key: 'deploy_bay',       label: 'Deploy Bay',       agent: 'DevOps',          color: 0x8b5cf6, x: 140, y: 380 },
+  { key: 'uat_lounge',       label: 'UAT Lounge',       agent: 'UAT Coordinator', color: 0x06b6d4, x: 420, y: 380 },
+  { key: 'broadcast_studio', label: 'Broadcast Studio', agent: 'Social Expert',   color: 0xec4899, x: 700, y: 380 },
+];
+
+class PipelineScene extends Phaser.Scene {
+  constructor() { super('pipeline'); }
+
+  create() {
+    this.roomSprites = {};
+    this.bubbles = {};
+
+    this.add.text(20, 16, 'RETRODEV SYNAPSE — LIVE PIPELINE', {
+      fontFamily: 'Courier New', fontSize: '20px', color: '#4ade80'
+    });
+
+    ROOMS.forEach(room => {
+      // Room floor
+      this.add.rectangle(room.x, room.y, 200, 140, 0x1a1f2b).setStrokeStyle(2, 0x2d3748);
+      this.add.text(room.x - 90, room.y - 65, room.label.toUpperCase(), {
+        fontFamily: 'Courier New', fontSize: '12px', color: '#94a3b8'
+      });
+
+      // Agent sprite (placeholder rectangle; swap for Kenney.nl character sheet)
+      const sprite = this.add.rectangle(room.x, room.y + 10, 36, 36, room.color);
+      sprite.setStrokeStyle(2, 0xffffff);
+      this.add.text(room.x - 30, room.y + 40, room.agent, {
+        fontFamily: 'Courier New', fontSize: '11px', color: '#e2e8f0'
+      });
+
+      // Idle animation
+      this.tweens.add({ targets: sprite, y: room.y + 4, duration: 900, yoyo: true, repeat: -1, ease: 'Sine.easeInOut' });
+
+      this.roomSprites[room.key] = { sprite, room };
+    });
+
+    // Package sprite used for handoff / loop animations between rooms
+    this.package = this.add.rectangle(-100, -100, 16, 16, 0xffffff);
+
+    this.startMockFeed();
+  }
+
+  showBubble(roomKey, text, color = '#e2e8f0') {
+    const entry = this.roomSprites[roomKey];
+    if (!entry) return;
+    if (this.bubbles[roomKey]) this.bubbles[roomKey].destroy();
+    const bubble = this.add.text(entry.room.x - 95, entry.room.y - 90, text, {
+      fontFamily: 'Courier New', fontSize: '11px', color, backgroundColor: '#000000cc',
+      padding: { x: 6, y: 4 }, wordWrap: { width: 190 }
+    });
+    this.bubbles[roomKey] = bubble;
+    this.time.delayedCall(4000, () => { bubble.destroy(); delete this.bubbles[roomKey]; });
+  }
+
+  walkPackage(fromKey, toKey, tint = 0xffffff, onDone) {
+    const from = this.roomSprites[fromKey].room;
+    const to = this.roomSprites[toKey].room;
+    this.package.setFillStyle(tint);
+    this.package.setPosition(from.x, from.y);
+    this.package.setVisible(true);
+    this.tweens.add({
+      targets: this.package, x: to.x, y: to.y, duration: 1200, ease: 'Sine.easeInOut',
+      onComplete: () => { this.package.setVisible(false); if (onDone) onDone(); }
+    });
+  }
+
+  setWaiting(reason) {
+    const banner = document.getElementById('waiting-banner');
+    if (reason) {
+      banner.textContent = `⏸ WAITING ON YOU — ${reason}`;
+      banner.style.display = 'block';
+    } else {
+      banner.style.display = 'none';
+    }
+  }
+
+  ticker(text) {
+    document.getElementById('ticker-text').textContent = text;
+  }
+
+  // --- Mock event feed: replace with real WebSocket relay in Phase 4 ---
+  startMockFeed() {
+    const steps = [
+      () => { this.showBubble('planning_deck', 'Q1: what is "fast" search?', '#93c5fd'); this.ticker('Product Manager: intake round 1 — awaiting your answer'); },
+      () => { this.setWaiting('answer Product Manager\'s clarifying questions'); },
+      () => { this.setWaiting(null); this.showBubble('planning_deck', 'PRD v1 locked ✓', '#4ade80'); this.walkPackage('planning_deck', 'code_vault', 0x3b82f6); },
+      () => { this.showBubble('code_vault', 'Building from PRD v1...', '#fbbf24'); },
+      () => { this.showBubble('code_vault', 'Q: latency target unclear — asking PM', '#fbbf24'); this.walkPackage('code_vault', 'planning_deck', 0xf59e0b); },
+      () => { this.showBubble('planning_deck', 'A: <200ms per PRD §3', '#93c5fd'); this.walkPackage('planning_deck', 'code_vault', 0x3b82f6); },
+      () => { this.walkPackage('code_vault', 'sandbox_lab', 0xf59e0b); this.showBubble('sandbox_lab', 'Testing build v1...', '#fca5a5'); },
+      () => { this.showBubble('sandbox_lab', 'Issue found: round 1', '#f87171'); this.walkPackage('sandbox_lab', 'code_vault', 0xef4444); this.ticker('QA <-> Developer: cycling (round 1) — 1 issue found so far'); },
+      () => { this.showBubble('code_vault', 'Fix pushed', '#fbbf24'); this.walkPackage('code_vault', 'sandbox_lab', 0xf59e0b); },
+      () => { this.showBubble('sandbox_lab', 'QA passed ✓', '#4ade80'); this.walkPackage('sandbox_lab', 'deploy_bay', 0xef4444); },
+      () => { this.showBubble('deploy_bay', 'Deploying to Dev...', '#c4b5fd'); },
+      () => { this.walkPackage('deploy_bay', 'uat_lounge', 0x8b5cf6); this.showBubble('uat_lounge', 'Running UAT checklist...', '#67e8f9'); },
+      () => { this.setWaiting('go/no-go on UAT results'); },
+      () => { this.setWaiting(null); this.walkPackage('uat_lounge', 'broadcast_studio', 0x06b6d4); this.showBubble('broadcast_studio', 'Drafting launch copy...', '#f9a8d4'); },
+      () => { this.setWaiting('approve marketing copy before publish'); },
+    ];
+    let i = 0;
+    this.time.addEvent({
+      delay: 3000, loop: true,
+      callback: () => { steps[i % steps.length](); i++; }
+    });
+  }
+}
+
+new Phaser.Game({
+  type: Phaser.AUTO,
+  width: 860,
+  height: 520,
+  parent: 'game-container',
+  backgroundColor: '#0b0e14',
+  scene: [PipelineScene]
+});
+</script>
+</body>
+</html>

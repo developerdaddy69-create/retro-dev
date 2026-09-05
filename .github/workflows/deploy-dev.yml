@@ -1,0 +1,53 @@
+name: Deploy Dev (Vercel preview)
+
+# Autonomous — dev deploys are low-risk, reversible, internal.
+# No human approval gate here by design (see deploy-uat.yml for the gated one).
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch: {}
+
+jobs:
+  deploy-dev:
+    runs-on: ubuntu-latest
+    environment: dev
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Vercel CLI
+        run: npm install --global vercel@latest
+
+      - name: Pull Vercel project settings
+        run: vercel pull --yes --environment=preview --token=${{ secrets.VERCEL_TOKEN }}
+
+      - name: Build
+        run: vercel build --token=${{ secrets.VERCEL_TOKEN }}
+
+      - name: Deploy preview
+        id: deploy
+        run: |
+          url=$(vercel deploy --prebuilt --token=${{ secrets.VERCEL_TOKEN }})
+          echo "url=$url" >> "$GITHUB_OUTPUT"
+
+      - name: Emit dev_deploy_ready event
+        run: |
+          echo "dev_deploy_ready: ${{ steps.deploy.outputs.url }}"
+          # DevOps agent / relay picks this up from the workflow run + deployment_status webhook
+
+    outputs:
+      preview_url: ${{ steps.deploy.outputs.url }}
+
+  smoke-test:
+    needs: deploy-dev
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - run: npm ci
+      - name: Smoke test against preview
+        run: npm run test:smoke --if-present -- --base-url="${{ needs.deploy-dev.outputs.preview_url }}"
+        # On failure: QA Tester / Developer agents pick up smoke_failed via the
+        # resolve-until-done loop defined in qa-tester.md — no fixed retry cap here.
