@@ -39,8 +39,10 @@ land; each has a status: `done`, `in progress`, `blocked (needs you)`.
       so the scene runs standalone with zero external assets/downloads)
 
 ## Phase 4 — Live wiring (blocked — needs accounts/credentials only you can create)
-- [ ] Create the actual GitHub repository and push this scaffold
-- [ ] Enable GitHub Actions on that repo
+- [x] GitHub repository created and scaffold pushed —
+      https://github.com/developerdaddy69-create/retro-dev (branch `main`)
+- [ ] Enable GitHub Actions on that repo (should auto-enable on push; confirm
+      in the repo's Actions tab)
 - [ ] Connect Vercel (free tier) to the repo for dev-preview deploys
 - [ ] Set up the GitHub Environment "uat" with required reviewers (you)
 - [ ] Deploy the webhook→WebSocket relay (Cloudflare Workers free tier) and
