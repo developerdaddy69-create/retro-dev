@@ -130,14 +130,20 @@
  * MANIFEST_PLAN_V5.md §5 / V6.md §5.
  */
 
+// Desk anchors sit in the WORK_ZONE (left/center of the floor); the break
+// room (coffee machine + benches) is a separate area to the right -- see
+// BREAK_ZONE in PipelineScene.wander().
 const ROOMS = [
-  { key: 'planning_deck',    label: 'Planning Deck',    agent: 'Product Manager', name: 'Priya', charKey: 'char_priya', color: 0x3b82f6, x: 140, y: 120 },
-  { key: 'code_vault',       label: 'Code Vault',       agent: 'Developer',       name: 'Dev',   charKey: 'char_dev',   color: 0xf59e0b, x: 420, y: 120 },
-  { key: 'sandbox_lab',      label: 'Sandbox Lab',      agent: 'QA Tester',       name: 'Quinn', charKey: 'char_quinn', color: 0xef4444, x: 700, y: 120 },
-  { key: 'deploy_bay',       label: 'Deploy Bay',       agent: 'DevOps',          name: 'Devon', charKey: 'char_devon', color: 0x8b5cf6, x: 140, y: 380 },
-  { key: 'uat_lounge',       label: 'UAT Lounge',       agent: 'UAT Coordinator', name: 'Uma',   charKey: 'char_uma',   color: 0x06b6d4, x: 420, y: 380 },
-  { key: 'broadcast_studio', label: 'Broadcast Studio', agent: 'Social Expert',   name: 'Sasha', charKey: 'char_sasha', color: 0xec4899, x: 700, y: 380 },
+  { key: 'planning_deck',    label: 'Planning Deck',    agent: 'Product Manager', name: 'Priya', charKey: 'char_priya', color: 0x3b82f6, x: 190, y: 160 },
+  { key: 'code_vault',       label: 'Code Vault',       agent: 'Developer',       name: 'Dev',   charKey: 'char_dev',   color: 0xf59e0b, x: 390, y: 160 },
+  { key: 'sandbox_lab',      label: 'Sandbox Lab',      agent: 'QA Tester',       name: 'Quinn', charKey: 'char_quinn', color: 0xef4444, x: 590, y: 160 },
+  { key: 'deploy_bay',       label: 'Deploy Bay',       agent: 'DevOps',          name: 'Devon', charKey: 'char_devon', color: 0x8b5cf6, x: 190, y: 340 },
+  { key: 'uat_lounge',       label: 'UAT Lounge',       agent: 'UAT Coordinator', name: 'Uma',   charKey: 'char_uma',   color: 0x06b6d4, x: 390, y: 340 },
+  { key: 'broadcast_studio', label: 'Broadcast Studio', agent: 'Social Expert',   name: 'Sasha', charKey: 'char_sasha', color: 0xec4899, x: 590, y: 340 },
 ];
+
+const WORK_ZONE  = { cx: 360, cy: 260, w: 560, h: 380 };
+const BREAK_ZONE = { cx: 745, cy: 285, w: 170, h: 400, minX: 670, maxX: 820, minY: 130, maxY: 470 };
 
 class PipelineScene extends Phaser.Scene {
   constructor() { super('pipeline'); }
@@ -166,9 +172,29 @@ class PipelineScene extends Phaser.Scene {
       fontFamily: 'Courier New', fontSize: '20px', color: '#4ade80'
     }).setDepth(1000);
 
+    // Two visually distinct zones, like a real office: a work zone (desks
+    // in rows) and a separate break room (coffee machine + benches) --
+    // agents physically walk between the two instead of everything
+    // happening in one spot.
+    this.add.rectangle(WORK_ZONE.cx, WORK_ZONE.cy, WORK_ZONE.w, WORK_ZONE.h, 0x14532d, 0.15).setDepth(1);
+    this.add.rectangle(BREAK_ZONE.cx, BREAK_ZONE.cy, BREAK_ZONE.w, BREAK_ZONE.h, 0x1e3a5f, 0.28).setDepth(1);
+    this.add.rectangle(655, 270, 3, 400, 0x334155).setDepth(2);
+    this.add.text(WORK_ZONE.cx, 48, 'WORK ZONE', {
+      fontFamily: 'Courier New', fontSize: '13px', color: '#86efac'
+    }).setOrigin(0.5, 0).setDepth(1000);
+    this.add.text(BREAK_ZONE.cx, 48, 'BREAK ROOM', {
+      fontFamily: 'Courier New', fontSize: '13px', color: '#93c5fd'
+    }).setOrigin(0.5, 0).setDepth(1000);
+
+    // Coffee machine + benches -- Kenney's dungeon pack has neither, so
+    // they're drawn procedurally in createPixelTextures() to match scale.
+    this.add.image(BREAK_ZONE.cx, 130, 'coffee_machine').setScale(2.4).setOrigin(0.5, 1).setDepth(130);
+    this.add.image(BREAK_ZONE.cx - 45, 260, 'bench').setScale(2).setOrigin(0.5, 1).setDepth(259);
+    this.add.image(BREAK_ZONE.cx + 45, 400, 'bench').setScale(2).setOrigin(0.5, 1).setDepth(399);
+
     ROOMS.forEach((room, i) => {
-      const deskX = room.x + 50, deskY = room.y - 35;
-      const chairX = room.x + 50, chairY = room.y - 3;
+      const deskX = room.x, deskY = room.y - 20;
+      const chairX = room.x, chairY = room.y + 15;
 
       // Desk with a laptop on it -- Kenney's dungeon pack has no laptop
       // sprite, so it's drawn procedurally in createPixelTextures() to
@@ -180,10 +206,10 @@ class PipelineScene extends Phaser.Scene {
       // Simple drawn chair in front of the desk.
       this.add.rectangle(chairX, chairY + 8, 16, 10, 0x5b3a29).setStrokeStyle(1, 0x3a2417).setDepth(chairY - 1);
 
-      this.add.text(deskX, deskY - 62, room.name, {
+      this.add.text(deskX, deskY - 55, room.name, {
         fontFamily: 'Courier New', fontSize: '12px', color: '#f8fafc'
       }).setOrigin(0.5, 0).setDepth(1000);
-      this.add.text(deskX, deskY - 49, room.agent, {
+      this.add.text(deskX, deskY - 42, room.agent, {
         fontFamily: 'Courier New', fontSize: '9px', color: '#94a3b8'
       }).setOrigin(0.5, 0).setDepth(1000);
 
@@ -197,10 +223,10 @@ class PipelineScene extends Phaser.Scene {
       };
       this.roomSprites[room.key] = entry;
 
-      // Idle wander across the WHOLE shared floor (not boxed to one room)
-      // so agents visibly cross paths and pass by each other's desks,
-      // instead of pacing alone in a private box. Staggered start so they
-      // don't all move in lockstep.
+      // Idle wander walks the agent over to the break room instead of
+      // pacing at their own desk, so "not working" reads as a real break,
+      // not just idling in place. Staggered start so they don't all move
+      // in lockstep.
       this.time.delayedCall(Phaser.Math.Between(0, 1500), () => this.wander(entry));
     });
 
@@ -225,18 +251,31 @@ class PipelineScene extends Phaser.Scene {
     g.fillStyle(0xf1f5f9); g.fillRect(9, 3, 2, 3);    // handle
     g.generateTexture('teacup', 12, 8);
 
+    g.clear();
+    g.fillStyle(0x1e293b); g.fillRect(0, 0, 12, 3);   // top lid
+    g.fillStyle(0x475569); g.fillRect(0, 2, 12, 12);  // machine body
+    g.fillStyle(0xdc2626); g.fillRect(9, 5, 2, 2);     // power light
+    g.fillStyle(0x0f172a); g.fillRect(2, 10, 8, 3);    // drip tray
+    g.fillStyle(0x92400e); g.fillRect(4, 11, 4, 1);    // pot liquid hint
+    g.generateTexture('coffee_machine', 12, 14);
+
+    g.clear();
+    g.fillStyle(0x581c0c); g.fillRect(0, 0, 26, 4);   // backrest
+    g.fillStyle(0x7c2d12); g.fillRect(0, 4, 26, 6);   // seat
+    g.generateTexture('bench', 26, 10);
+
     g.destroy();
   }
 
-  // Random-walks a sprite across the shared office floor, pausing between
-  // moves, so agents look like they're pacing/socializing rather than
-  // static icons -- and so their paths actually cross each other's desks.
+  // Random-walks a sprite within the break room only -- this is the
+  // "resting" behavior, so it deliberately does NOT roam the whole floor;
+  // agents physically leave their desk and walk over to the break room
+  // (coffee machine / benches) instead of idling in place.
   wander(entry) {
     if (!entry.wandering) return;
     const BASE_SCALE = 2;
     const sprite = entry.sprite;
-    const minX = 60, maxX = this.scale.width - 60;
-    const minY = 90, maxY = this.scale.height - 70;
+    const { minX, maxX, minY, maxY } = BREAK_ZONE;
     const step = () => {
       if (!entry.wandering) return;
       const tx = Phaser.Math.Between(minX, maxX);
@@ -249,8 +288,8 @@ class PipelineScene extends Phaser.Scene {
         onUpdate: () => sprite.setDepth(sprite.y),
         onComplete: () => {
           if (!entry.wandering) return;
-          // Occasionally pause for a tea break -- a visible cup appears
-          // next to whoever isn't currently heads-down working.
+          // Occasionally pause at the coffee machine for a cup -- a
+          // visible cup appears next to whoever isn't currently working.
           if (Phaser.Math.Between(0, 100) < 35) this.showTea(entry);
           this.time.delayedCall(Phaser.Math.Between(1200, 3500), step);
         }
