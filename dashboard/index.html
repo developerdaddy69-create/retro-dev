@@ -2,531 +2,565 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8" />
-<title>RetroDev Synapse — Pipeline Dashboard</title>
+<title>RetroDev Synapse — Agent Command Center</title>
+<meta name="viewport" content="width=device-width, initial-scale=1" />
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
 <style>
   :root {
-    --pixel-font: 'Press Start 2P', 'Courier New', monospace;
-    --panel-bg: #12172380;
-    --panel-hi: #3d4a63;   /* bevel light edge */
-    --panel-lo: #05070c;   /* bevel dark edge */
-    --accent: #4ade80;
+    --bg: #05070d;
+    --panel: rgba(17, 22, 34, 0.62);
+    --panel-border: rgba(255, 255, 255, 0.08);
+    --accent: #6ee7ff;
+    --accent-2: #a78bfa;
+    --text: #e7ecf5;
+    --text-dim: #7b8698;
+    --danger: #f87171;
+    --ok: #4ade80;
+    --sans: 'Space Grotesk', 'Segoe UI', sans-serif;
+    --mono: 'JetBrains Mono', 'Courier New', monospace;
   }
-  html, body { margin: 0; padding: 0; background: #0b0e14; overflow: hidden; font-family: 'Courier New', monospace; height: 100%; }
-  #app { display: flex; flex-direction: row; height: 100vh; box-sizing: border-box; padding-top: 40px; padding-bottom: 28px; }
-  #app.banner-hidden { padding-top: 0; }
-  #game-container { flex: 1 1 auto; min-width: 0; position: relative; overflow: hidden; }
-  /* Keep the Phaser canvas crisp when the browser/CSS scales it -- without
-     this, upscaled 16x16 sprites get bilinear-blurred by the browser on
-     top of whatever Phaser itself does. */
-  #game-container canvas { image-rendering: pixelated; image-rendering: crisp-edges; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; background: var(--bg); height: 100%; overflow: hidden; font-family: var(--sans); color: var(--text); }
 
-  /* Faint CRT scanline overlay across the whole app -- purely cosmetic,
-     reinforces the retro-game read without obscuring anything. */
-  #scanlines {
-    position: fixed; inset: 0; pointer-events: none; z-index: 999;
-    background: repeating-linear-gradient(to bottom, rgba(0,0,0,0.12) 0px, rgba(0,0,0,0.12) 1px, transparent 1px, transparent 3px);
-    mix-blend-mode: multiply;
-  }
+  #app { display: flex; flex-direction: row; height: 100vh; }
+  #scene-wrap { flex: 1 1 auto; min-width: 0; position: relative; overflow: hidden; }
+  #scene-wrap canvas { display: block; }
+  #scene-wrap .css2d-layer { pointer-events: none; }
 
-  #sidebar {
-    flex: 0 0 360px; width: 360px; display: flex; flex-direction: column;
-    border-left: 3px solid var(--panel-hi); background: #0b0e14; overflow: hidden;
+  /* Subtle vignette so the 3D scene reads as a hero, not a flat canvas */
+  #vignette {
+    position: absolute; inset: 0; pointer-events: none; z-index: 5;
+    background: radial-gradient(ellipse at center, transparent 45%, rgba(2,3,8,0.75) 100%);
   }
 
-  /* Shared retro "bevel" panel look: a light top/left edge + dark
-     bottom/right edge, like a classic 8-bit UI window frame. Applied per
-     panel below via box-shadow so it composes with each panel's own
-     border-bottom divider. */
-  #sidebar h3 {
-    font-family: var(--pixel-font); font-size: 10px; letter-spacing: 0.5px;
-    color: var(--accent); text-shadow: 2px 2px 0 #00000080; line-height: 1.6;
+  #hud-top {
+    position: absolute; top: 0; left: 0; right: 0; padding: 22px 28px; z-index: 10;
+    display: flex; align-items: baseline; justify-content: space-between; pointer-events: none;
   }
-  #sidebar button {
-    font-family: var(--pixel-font); font-size: 10px; letter-spacing: 0.5px; line-height: 1.6;
-    border: none; cursor: pointer; padding: 10px 8px; color: #000;
-    box-shadow: inset -3px -3px 0 rgba(0,0,0,0.35), inset 3px 3px 0 rgba(255,255,255,0.35);
+  #hud-top h1 {
+    margin: 0; font-size: 20px; font-weight: 700; letter-spacing: 0.5px;
+    background: linear-gradient(90deg, var(--accent), var(--accent-2));
+    -webkit-background-clip: text; background-clip: text; color: transparent;
   }
-  #sidebar button:active:not(:disabled) { box-shadow: inset 3px 3px 0 rgba(0,0,0,0.35), inset -3px -3px 0 rgba(255,255,255,0.2); }
-  #sidebar button:disabled { opacity: 0.5; cursor: default; }
-  #ticker {
-    position: fixed; left: 0; right: 0; bottom: 0; height: 30px;
-    background: #000; color: var(--accent); font-family: var(--pixel-font); font-size: 11px; line-height: 30px;
-    white-space: nowrap; overflow: hidden; border-top: 3px solid var(--accent); z-index: 20;
-  }
-  #ticker span { display: inline-block; padding-left: 100%; animation: scroll-left 18s linear infinite; }
-  @keyframes scroll-left { 0% { transform: translateX(0); } 100% { transform: translateX(-100%); } }
+  #hud-top .sub { font-size: 11px; color: var(--text-dim); font-family: var(--mono); margin-top: 2px; }
+
   #waiting-banner {
-    position: fixed; top: 0; left: 0; right: 0; padding: 12px; text-align: center;
-    background: #7f1d1d; color: #fff; font-family: var(--pixel-font); font-size: 11px; letter-spacing: 1px;
-    border-bottom: 3px solid #450a0a; box-shadow: inset 0 2px 0 #dc2626;
-    display: none; z-index: 21;
+    position: absolute; top: 0; left: 0; right: 0; padding: 12px; text-align: center; z-index: 30;
+    background: rgba(127, 29, 29, 0.85); backdrop-filter: blur(6px); color: #fecaca;
+    font-family: var(--mono); font-size: 12px; letter-spacing: 0.5px;
+    border-bottom: 1px solid rgba(248,113,113,0.4); display: none;
   }
-  #current-project {
-    flex: 0 0 auto; background: #0f1420; border-bottom: 3px solid var(--panel-lo); padding: 14px 12px;
-    font-family: 'Courier New', monospace; color: #e2e8f0;
-    box-shadow: inset 0 2px 0 var(--panel-hi);
+
+  #ticker {
+    position: absolute; left: 0; right: 0; bottom: 0; height: 34px; z-index: 10;
+    background: rgba(5,7,13,0.75); backdrop-filter: blur(6px); color: var(--accent);
+    font-family: var(--mono); font-size: 12px; line-height: 34px; white-space: nowrap; overflow: hidden;
+    border-top: 1px solid var(--panel-border);
   }
-  #current-project h3 { margin: 0 0 8px; }
-  #current-project .title { font-size: 12px; color: #fff; margin-bottom: 6px; }
-  #current-project .meta-row { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; margin-bottom: 6px; }
+  #ticker span { display: inline-block; padding-left: 100%; animation: scroll-left 20s linear infinite; }
+  @keyframes scroll-left { 0% { transform: translateX(0); } 100% { transform: translateX(-100%); } }
+
+  /* Floating per-node labels rendered via CSS2DRenderer */
+  .node-label {
+    font-family: var(--sans); text-align: center; pointer-events: auto; cursor: pointer;
+    transform: translateY(8px);
+  }
+  .node-label .name { font-size: 13px; font-weight: 600; color: #fff; text-shadow: 0 2px 8px rgba(0,0,0,0.8); }
+  .node-label .role { font-size: 10px; color: var(--text-dim); text-shadow: 0 2px 6px rgba(0,0,0,0.8); }
+  .node-label .dot {
+    display: inline-block; width: 6px; height: 6px; border-radius: 50%; margin-right: 4px;
+    background: #556; vertical-align: middle;
+  }
+  .node-label .dot.working { background: var(--ok); box-shadow: 0 0 6px var(--ok); animation: blink 1.4s ease-in-out infinite; }
+  .node-label .dot.waiting { background: var(--danger); box-shadow: 0 0 6px var(--danger); animation: blink 0.9s ease-in-out infinite; }
+  @keyframes blink { 0%,100% { opacity: 1; } 50% { opacity: 0.35; } }
+
+  /* ---------------- Sidebar ---------------- */
+  #sidebar {
+    flex: 0 0 380px; width: 380px; display: flex; flex-direction: column;
+    background: linear-gradient(180deg, #0a0d16, #05070d);
+    border-left: 1px solid var(--panel-border); overflow-y: auto; overflow-x: hidden;
+  }
+  .card {
+    margin: 14px 14px 0; padding: 16px; border-radius: 12px;
+    background: var(--panel); border: 1px solid var(--panel-border);
+    backdrop-filter: blur(10px);
+  }
+  .card:last-child { margin-bottom: 14px; }
+  .card h3 {
+    margin: 0 0 10px; font-size: 12px; font-weight: 600; letter-spacing: 1px; text-transform: uppercase;
+    color: var(--accent); display: flex; align-items: center; gap: 6px;
+  }
+  .card h3::before { content: ''; width: 6px; height: 6px; border-radius: 50%; background: var(--accent); box-shadow: 0 0 8px var(--accent); }
+  .card p.hint { margin: 0 0 10px; font-size: 11px; color: var(--text-dim); line-height: 1.5; }
+
+  #current-project .title { font-size: 13px; color: #fff; margin-bottom: 8px; line-height: 1.4; }
+  #current-project .meta-row { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; margin-bottom: 8px; }
   #current-project .stage {
-    display: inline-block; background: #1e3a5f; color: #93c5fd; font-size: 9px;
-    padding: 4px 8px; letter-spacing: 0.5px;
-    box-shadow: inset -2px -2px 0 rgba(0,0,0,0.35), inset 2px 2px 0 rgba(255,255,255,0.2);
+    display: inline-block; background: rgba(110,231,255,0.12); color: var(--accent); font-size: 10px;
+    padding: 4px 9px; border-radius: 6px; letter-spacing: 0.3px; border: 1px solid rgba(110,231,255,0.3);
   }
   #current-project .waiting {
-    color: #450a0a; background: #fca5a5; font-size: 9px; padding: 4px 8px; letter-spacing: 0.5px;
-    box-shadow: inset -2px -2px 0 rgba(0,0,0,0.25), inset 2px 2px 0 rgba(255,255,255,0.4);
+    color: #fff; background: rgba(248,113,113,0.18); border: 1px solid rgba(248,113,113,0.4);
+    font-size: 10px; padding: 4px 9px; border-radius: 6px; letter-spacing: 0.3px;
   }
-  #current-project .none { font-size: 11px; color: #64748b; }
-  #current-project a { color: #93c5fd; font-size: 10px; }
+  #current-project .none { font-size: 12px; color: var(--text-dim); }
+  #current-project a { color: var(--accent); font-size: 11px; text-decoration: none; }
+  #current-project a:hover { text-decoration: underline; }
 
-  #submit-panel {
-    flex: 0 0 auto; background: #0f1420; border-bottom: 3px solid var(--panel-lo); padding: 14px 12px;
-    font-family: 'Courier New', monospace; color: #e2e8f0;
-    box-shadow: inset 0 2px 0 var(--panel-hi);
+  textarea, input[type=password], input[type=text] {
+    width: 100%; box-sizing: border-box; background: rgba(0,0,0,0.35); color: var(--text);
+    border: 1px solid var(--panel-border); border-radius: 8px; font-family: var(--mono); font-size: 12px;
+    padding: 10px; margin-bottom: 8px; resize: vertical;
   }
-  #submit-panel h3 { margin: 0 0 10px; }
-  #submit-panel textarea, #submit-panel input {
-    width: 100%; box-sizing: border-box; background: #000; color: #e2e8f0;
-    border: none; font-family: 'Courier New', monospace; font-size: 12px; padding: 8px; margin-bottom: 8px;
-    box-shadow: inset -2px -2px 0 rgba(255,255,255,0.08), inset 2px 2px 0 rgba(0,0,0,0.6);
-  }
-  #submit-panel button { width: 100%; background: var(--accent); }
-  #submit-status { font-size: 11px; margin-top: 6px; min-height: 14px; }
+  textarea:focus, input:focus { outline: none; border-color: var(--accent); }
 
-  #automation-panel {
-    flex: 0 0 auto; background: #0f1420; border-bottom: 3px solid var(--panel-lo); padding: 14px 12px;
-    font-family: 'Courier New', monospace; color: #e2e8f0;
-    box-shadow: inset 0 2px 0 var(--panel-hi);
+  button {
+    width: 100%; border: none; border-radius: 8px; padding: 11px; font-family: var(--sans);
+    font-size: 13px; font-weight: 600; cursor: pointer; color: #04121a;
+    background: linear-gradient(90deg, var(--accent), #38bdf8);
+    transition: transform 0.15s ease, box-shadow 0.15s ease;
   }
-  #automation-panel h3 { margin: 0 0 6px; }
-  #automation-panel p { margin: 0 0 10px; font-size: 10px; color: #64748b; line-height: 1.5; }
-  #automation-panel button { width: 100%; background: #14b8a6; }
-  #automation-status { font-size: 11px; margin-top: 8px; min-height: 14px; white-space: pre-wrap; }
+  button:hover:not(:disabled) { box-shadow: 0 4px 18px rgba(110,231,255,0.35); transform: translateY(-1px); }
+  button:active:not(:disabled) { transform: translateY(0); }
+  button:disabled { opacity: 0.5; cursor: default; }
+  #automation-panel button { background: linear-gradient(90deg, var(--accent-2), #6366f1); }
+  .status-line { font-size: 11px; margin-top: 8px; min-height: 14px; color: var(--text-dim); white-space: pre-wrap; }
 
-  #confirm-panel {
-    flex: 0 0 auto; max-height: 45%; overflow-y: auto;
-    background: #1a0f0f; border-bottom: 3px solid #4a0f0f; padding: 14px 12px;
-    font-family: 'Courier New', monospace; color: #fecaca; display: none;
-    box-shadow: inset 0 2px 0 #7f1d1d;
-  }
-  #confirm-panel .item.answered { opacity: 0.6; }
-  #confirm-panel .flagged {
-    display: inline-block; background: var(--accent); color: #000; font-weight: bold;
-    font-size: 10px; padding: 4px 8px; letter-spacing: 0.5px; margin-bottom: 6px;
-    box-shadow: inset -2px -2px 0 rgba(0,0,0,0.35), inset 2px 2px 0 rgba(255,255,255,0.35);
-  }
+  #confirm-panel { display: none; border-color: rgba(248,113,113,0.35); }
   #confirm-panel .badge {
-    font-family: var(--pixel-font); font-size: 9px; line-height: 1.8;
-    display: inline-block; background: #f87171; color: #000; letter-spacing: 0.5px;
-    padding: 6px 10px; margin-bottom: 10px;
-    box-shadow: inset -2px -2px 0 rgba(0,0,0,0.35), inset 2px 2px 0 rgba(255,255,255,0.4);
-    animation: pulse-badge 1.4s ease-in-out infinite;
+    display: inline-block; background: rgba(248,113,113,0.15); color: #fecaca; border: 1px solid rgba(248,113,113,0.4);
+    font-size: 10px; font-weight: 600; letter-spacing: 0.5px; padding: 5px 10px; border-radius: 6px; margin-bottom: 10px;
+    animation: pulse-badge 1.6s ease-in-out infinite;
   }
-  @keyframes pulse-badge { 0%,100% { opacity: 1; } 50% { opacity: 0.55; } }
-  #confirm-panel .item { border-top: 2px dashed #7f1d1d; padding-top: 10px; margin-top: 10px; }
+  @keyframes pulse-badge { 0%,100% { opacity: 1; } 50% { opacity: 0.6; } }
+  #confirm-panel .item { border-top: 1px solid var(--panel-border); padding-top: 10px; margin-top: 10px; }
   #confirm-panel .item:first-of-type { border-top: none; margin-top: 0; }
+  #confirm-panel .item.answered { opacity: 0.55; }
+  #confirm-panel .flagged {
+    display: inline-block; background: rgba(74,222,128,0.15); color: var(--ok); border: 1px solid rgba(74,222,128,0.4);
+    font-size: 10px; font-weight: 600; padding: 3px 8px; border-radius: 6px; margin-bottom: 6px;
+  }
   #confirm-panel .title { font-size: 12px; color: #fff; margin-bottom: 6px; }
-  #confirm-panel .snippet { font-size: 11px; color: #fca5a5; white-space: pre-wrap; max-height: 90px; overflow-y: auto; margin-bottom: 8px; }
-  #confirm-panel textarea {
-    width: 100%; box-sizing: border-box; background: #000; color: #e2e8f0;
-    border: none; font-family: 'Courier New', monospace; font-size: 12px; padding: 8px; margin-bottom: 8px;
-    box-shadow: inset -2px -2px 0 rgba(255,255,255,0.08), inset 2px 2px 0 rgba(0,0,0,0.6);
+  #confirm-panel .snippet {
+    font-size: 11px; color: #cbd5e1; white-space: pre-wrap; max-height: 90px; overflow-y: auto;
+    margin-bottom: 8px; font-family: var(--mono); background: rgba(0,0,0,0.25); padding: 8px; border-radius: 6px;
   }
-  #confirm-panel button { background: #f87171; font-size: 9px; }
-  #confirm-panel a { color: #fca5a5; }
-  #confirm-panel .status { font-size: 10px; margin-top: 6px; min-height: 12px; }
+  #confirm-panel a { color: #fca5a5; font-size: 11px; }
 
-  /* ChatDev-style dialogue transcript: persistent log of every agent
-     turn, colored per role, vs. the transient in-room speech bubbles
-     Phaser draws on the map itself. */
-  #dialogue-panel { flex: 1 1 auto; display: flex; flex-direction: column; min-height: 0; }
-  #dialogue-panel h3 {
-    margin: 0; padding: 12px; border-bottom: 3px solid var(--panel-lo); background: #0f1420; flex: 0 0 auto;
-    box-shadow: inset 0 2px 0 var(--panel-hi);
+  /* Agent detail card -- populated on node click/hover */
+  #agent-detail .empty { font-size: 12px; color: var(--text-dim); }
+  #agent-detail .row { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
+  #agent-detail .swatch { width: 14px; height: 14px; border-radius: 4px; flex: 0 0 auto; }
+  #agent-detail .name { font-size: 14px; font-weight: 600; color: #fff; }
+  #agent-detail .role { font-size: 11px; color: var(--text-dim); }
+  #agent-detail .state {
+    font-size: 10px; padding: 3px 8px; border-radius: 6px; margin-left: auto; letter-spacing: 0.3px;
   }
-  #dialogue-log { flex: 1 1 auto; overflow-y: auto; padding: 10px; background: #080b12; }
+  #agent-detail .state.working { background: rgba(74,222,128,0.15); color: var(--ok); border: 1px solid rgba(74,222,128,0.4); }
+  #agent-detail .state.idle { background: rgba(255,255,255,0.06); color: var(--text-dim); border: 1px solid var(--panel-border); }
+  #agent-detail .last-msg {
+    font-size: 11px; color: #cbd5e1; font-family: var(--mono); background: rgba(0,0,0,0.25);
+    padding: 8px; border-radius: 6px; white-space: pre-wrap; max-height: 100px; overflow-y: auto;
+  }
+
+  /* ---------------- Dialogue log ---------------- */
+  #dialogue-panel { flex: 1 1 auto; display: flex; flex-direction: column; min-height: 260px; margin-top: 14px; }
+  #dialogue-panel .card { flex: 1 1 auto; display: flex; flex-direction: column; min-height: 0; margin-bottom: 14px; }
+  #dialogue-log { flex: 1 1 auto; overflow-y: auto; margin-top: 4px; }
   #dialogue-log .msg { margin-bottom: 12px; }
   #dialogue-log .role {
-    display: inline-block; font-size: 9px; font-family: var(--pixel-font); letter-spacing: 0.5px;
-    color: #000; padding: 4px 8px; margin-bottom: 5px; line-height: 1.6;
-    box-shadow: inset -2px -2px 0 rgba(0,0,0,0.3), inset 2px 2px 0 rgba(255,255,255,0.35);
+    display: inline-block; font-size: 10px; font-weight: 600; color: #04121a;
+    padding: 3px 8px; border-radius: 6px; margin-bottom: 4px; letter-spacing: 0.2px;
   }
   #dialogue-log .bubble {
-    background: #161b26; border-left: 3px solid #2d3748; padding: 9px 10px;
-    font-size: 12px; color: #e2e8f0; white-space: pre-wrap;
+    background: rgba(255,255,255,0.04); border-left: 2px solid var(--panel-border); border-radius: 0 8px 8px 0;
+    padding: 9px 10px; font-size: 12px; color: var(--text); white-space: pre-wrap; font-family: var(--mono);
   }
-  #dialogue-log .ts { font-size: 9px; color: #64748b; margin-left: 6px; }
+  #dialogue-log .ts { font-size: 9px; color: var(--text-dim); margin-left: 6px; font-family: var(--mono); }
+
+  ::-webkit-scrollbar { width: 8px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.15); border-radius: 4px; }
 </style>
 </head>
 <body>
-<div id="scanlines"></div>
-<div id="waiting-banner"></div>
 <div id="app">
-  <div id="game-container"></div>
+  <div id="scene-wrap">
+    <div id="waiting-banner"></div>
+    <div id="hud-top">
+      <div>
+        <h1>RETRODEV SYNAPSE</h1>
+        <div class="sub">Autonomous Agent Pipeline — Live 3D Monitor</div>
+      </div>
+    </div>
+    <div id="vignette"></div>
+    <div id="ticker"><span id="ticker-text">RetroDev Synapse online — waiting for pipeline events...</span></div>
+  </div>
+
   <div id="sidebar">
-    <div id="current-project">
-      <h3>CURRENT PROJECT</h3>
+    <div id="current-project" class="card">
+      <h3>Current Project</h3>
       <div id="current-project-body" class="none">Checking...</div>
     </div>
-    <div id="submit-panel">
-      <h3>SUBMIT REQUIREMENT</h3>
+
+    <div id="agent-detail" class="card">
+      <h3>Agent Detail</h3>
+      <div id="agent-detail-body" class="empty">Click a node in the 3D view to inspect an agent.</div>
+    </div>
+
+    <div id="submit-panel" class="card">
+      <h3>Submit Requirement</h3>
       <textarea id="req-input" rows="3" placeholder="What should the pipeline build?"></textarea>
       <input id="secret-input" type="password" placeholder="operator secret (saved locally)" />
       <button id="req-submit">Send to Product Manager</button>
-      <div id="submit-status"></div>
+      <div id="submit-status" class="status-line"></div>
     </div>
-    <div id="automation-panel">
-      <h3>PIPELINE AUTOMATION</h3>
-      <p>Runs one real agent step (PM / Designer / UAT) via API. Costs a small amount per click.</p>
+
+    <div id="automation-panel" class="card">
+      <h3>Pipeline Automation</h3>
+      <p class="hint">Runs one real agent step (PM / Designer / UAT) via API. Costs a small amount per click.</p>
       <button id="run-step-btn">Run Next Pipeline Step</button>
-      <div id="automation-status"></div>
+      <div id="automation-status" class="status-line"></div>
     </div>
-    <div id="confirm-panel">
-      <div class="badge">⚠ REQUIRES YOUR CONFIRMATION</div>
+
+    <div id="confirm-panel" class="card">
+      <div class="badge">⚠ Requires your confirmation</div>
       <div id="confirm-items"></div>
     </div>
+
     <div id="dialogue-panel">
-      <h3>AGENT DIALOGUE LOG</h3>
-      <div id="dialogue-log"></div>
+      <div class="card">
+        <h3>Agent Dialogue Log</h3>
+        <div id="dialogue-log"></div>
+      </div>
     </div>
   </div>
 </div>
-<div id="ticker"><span id="ticker-text">RetroDev Synapse online — waiting for pipeline events...</span></div>
 
-<!-- Phaser 3, free/MIT. Swap to a pinned local copy before production use. -->
-<script src="https://cdn.jsdelivr.net/npm/phaser@3.70.0/dist/phaser.min.js"></script>
-<script>
-/*
- * Retro pipeline dashboard skeleton (Phase 3 of PROGRESS.md).
- *
- * Rooms are placeholder colored rectangles + labels for now — swap in
- * Kenney.nl (CC0) tile/sprite sheets and a Tiled-exported map once the
- * real webhook relay (Phase 4) is wired up. The event feed below is a
- * MOCK to prove the rendering model end-to-end; replace `mockEventFeed`
- * with a WebSocket listener pointed at the Cloudflare Workers relay from
- * MANIFEST_PLAN_V5.md §5 / V6.md §5.
- */
-
-// Desk anchors sit in the WORK_ZONE (left/center of the floor); the break
-// room (coffee machine + benches) is a separate area to the right -- see
-// BREAK_ZONE in PipelineScene.wander().
-const ROOMS = [
-  { key: 'planning_deck',    label: 'Planning Deck',    agent: 'Product Manager', name: 'Priya', charKey: 'char_priya', color: 0x3b82f6, x: 160, y: 150 },
-  { key: 'design_studio',    label: 'Design Studio',    agent: 'Designer',        name: 'Dara',  charKey: 'char_dara',  color: 0x14b8a6, x: 300, y: 150 },
-  { key: 'code_vault',       label: 'Code Vault',       agent: 'Developer',       name: 'Dev',   charKey: 'char_dev',   color: 0xf59e0b, x: 440, y: 150 },
-  { key: 'sandbox_lab',      label: 'Sandbox Lab',      agent: 'QA Tester',       name: 'Quinn', charKey: 'char_quinn', color: 0xef4444, x: 580, y: 150 },
-  { key: 'deploy_bay',       label: 'Deploy Bay',       agent: 'DevOps',          name: 'Devon', charKey: 'char_devon', color: 0x8b5cf6, x: 230, y: 330 },
-  { key: 'uat_lounge',       label: 'UAT Lounge',       agent: 'UAT Coordinator', name: 'Uma',   charKey: 'char_uma',   color: 0x06b6d4, x: 370, y: 330 },
-  { key: 'broadcast_studio', label: 'Broadcast Studio', agent: 'Social Expert',   name: 'Sasha', charKey: 'char_sasha', color: 0xec4899, x: 510, y: 330 },
-];
-
-const WORK_ZONE  = { cx: 370, cy: 260, w: 540, h: 380 };
-const BREAK_ZONE = { cx: 745, cy: 285, w: 170, h: 400, minX: 670, maxX: 820, minY: 130, maxY: 470 };
-
-class PipelineScene extends Phaser.Scene {
-  constructor() { super('pipeline'); }
-
-  preload() {
-    // Real CC0 pixel art (Kenney's Tiny Dungeon pack, cropped) -- see
-    // assets/CREDITS.md. Root-absolute paths (not "assets/...") because
-    // "/" is served via a Vercel rewrite to this same file -- a relative
-    // path there resolves against "/" instead of "/dashboard/", 404ing
-    // every image and leaving Phaser's default missing-texture tile in
-    // its place. Falls back gracefully to nothing drawn if a file still
-    // 404s, rather than breaking the scene.
-    ROOMS.forEach(room => this.load.image(room.charKey, `/dashboard/assets/characters/${room.name.toLowerCase()}.png`));
-    this.load.image('floor_tile', '/dashboard/assets/tiles/floor_sand.png');
-    this.load.image('furniture_dresser', '/dashboard/assets/tiles/dresser.png');
-    this.load.image('furniture_desk', '/dashboard/assets/tiles/furniture_2.png');
-  }
-
-  create() {
-    this.roomSprites = {};
-    this.bubbles = {};
-    this.createPixelTextures();
-
-    // One continuous open-plan office floor -- no per-room walls, so agents
-    // can freely wander over to each other's desks instead of being stuck
-    // in separate boxes, like the ChatDev reference office.
-    this.add.tileSprite(0, 0, this.scale.width, this.scale.height, 'floor_tile').setOrigin(0, 0).setDepth(0);
-
-    this.add.text(20, 16, 'RETRODEV SYNAPSE — LIVE PIPELINE', {
-      fontFamily: 'Courier New', fontSize: '20px', color: '#4ade80'
-    }).setDepth(1000);
-
-    // Two visually distinct zones, like a real office: a work zone (desks
-    // in rows) and a separate break room (coffee machine + benches) --
-    // agents physically walk between the two instead of everything
-    // happening in one spot.
-    this.add.rectangle(WORK_ZONE.cx, WORK_ZONE.cy, WORK_ZONE.w, WORK_ZONE.h, 0x14532d, 0.15).setDepth(1);
-    this.add.rectangle(BREAK_ZONE.cx, BREAK_ZONE.cy, BREAK_ZONE.w, BREAK_ZONE.h, 0x1e3a5f, 0.28).setDepth(1);
-    this.add.rectangle(655, 270, 3, 400, 0x334155).setDepth(2);
-    this.add.text(WORK_ZONE.cx, 48, 'WORK ZONE', {
-      fontFamily: 'Courier New', fontSize: '13px', color: '#86efac'
-    }).setOrigin(0.5, 0).setDepth(1000);
-    this.add.text(BREAK_ZONE.cx, 48, 'BREAK ROOM', {
-      fontFamily: 'Courier New', fontSize: '13px', color: '#93c5fd'
-    }).setOrigin(0.5, 0).setDepth(1000);
-
-    // Coffee machine + benches -- Kenney's dungeon pack has neither, so
-    // they're drawn procedurally in createPixelTextures() to match scale.
-    this.add.image(BREAK_ZONE.cx, 130, 'coffee_machine').setScale(2.4).setOrigin(0.5, 1).setDepth(130);
-    this.add.image(BREAK_ZONE.cx - 45, 260, 'bench').setScale(2).setOrigin(0.5, 1).setDepth(259);
-    this.add.image(BREAK_ZONE.cx + 45, 400, 'bench').setScale(2).setOrigin(0.5, 1).setDepth(399);
-
-    ROOMS.forEach((room, i) => {
-      const deskX = room.x, deskY = room.y - 20;
-      const chairX = room.x, chairY = room.y + 15;
-
-      // Desk with a laptop on it -- Kenney's dungeon pack has no laptop
-      // sprite, so it's drawn procedurally in createPixelTextures() to
-      // match the same pixel-art scale/palette.
-      const furnitureKey = i % 2 === 0 ? 'furniture_dresser' : 'furniture_desk';
-      this.add.image(deskX, deskY, furnitureKey).setScale(2).setOrigin(0.5, 1).setDepth(deskY);
-      this.add.image(deskX, deskY - 15, 'laptop').setScale(2).setOrigin(0.5, 1).setDepth(deskY + 1);
-
-      // Simple drawn chair in front of the desk.
-      this.add.rectangle(chairX, chairY + 8, 16, 10, 0x5b3a29).setStrokeStyle(1, 0x3a2417).setDepth(chairY - 1);
-
-      this.add.text(deskX, deskY - 55, room.name, {
-        fontFamily: 'Courier New', fontSize: '12px', color: '#f8fafc'
-      }).setOrigin(0.5, 0).setDepth(1000);
-      this.add.text(deskX, deskY - 42, room.agent, {
-        fontFamily: 'Courier New', fontSize: '9px', color: '#94a3b8'
-      }).setOrigin(0.5, 0).setDepth(1000);
-
-      // Agent sprite: real chibi character art, colored/styled per role
-      // (Kenney's Tiny Dungeon pack -- see assets/CREDITS.md).
-      const sprite = this.add.image(chairX, chairY, room.charKey).setScale(2).setDepth(chairY);
-
-      const entry = {
-        sprite, room, working: false, wandering: true,
-        chairPos: { x: chairX, y: chairY }, bobTween: null,
-      };
-      this.roomSprites[room.key] = entry;
-
-      // Idle wander walks the agent over to the break room instead of
-      // pacing at their own desk, so "not working" reads as a real break,
-      // not just idling in place. Staggered start so they don't all move
-      // in lockstep.
-      this.time.delayedCall(Phaser.Math.Between(0, 1500), () => this.wander(entry));
-    });
-
-    // Package sprite used for handoff / loop animations between rooms
-    this.package = this.add.rectangle(-100, -100, 16, 16, 0xffffff).setDepth(2000);
-  }
-
-  // Draws small pixel-art props Kenney's dungeon pack doesn't include
-  // (laptop, teacup) at the same scale/palette as the real sprite sheets.
-  createPixelTextures() {
-    const g = this.make.graphics({ x: 0, y: 0, add: false });
-
-    g.clear();
-    g.fillStyle(0x334155); g.fillRect(0, 5, 14, 4);   // keyboard/base
-    g.fillStyle(0x0f172a); g.fillRect(1, 0, 12, 5);   // screen bezel
-    g.fillStyle(0x38bdf8); g.fillRect(2, 1, 10, 3);   // screen glow
-    g.generateTexture('laptop', 14, 9);
-
-    g.clear();
-    g.fillStyle(0xf1f5f9); g.fillRect(1, 2, 9, 6);    // cup body
-    g.fillStyle(0x92400e); g.fillRect(2, 3, 7, 2);    // tea
-    g.fillStyle(0xf1f5f9); g.fillRect(9, 3, 2, 3);    // handle
-    g.generateTexture('teacup', 12, 8);
-
-    g.clear();
-    g.fillStyle(0x1e293b); g.fillRect(0, 0, 12, 3);   // top lid
-    g.fillStyle(0x475569); g.fillRect(0, 2, 12, 12);  // machine body
-    g.fillStyle(0xdc2626); g.fillRect(9, 5, 2, 2);     // power light
-    g.fillStyle(0x0f172a); g.fillRect(2, 10, 8, 3);    // drip tray
-    g.fillStyle(0x92400e); g.fillRect(4, 11, 4, 1);    // pot liquid hint
-    g.generateTexture('coffee_machine', 12, 14);
-
-    g.clear();
-    g.fillStyle(0x581c0c); g.fillRect(0, 0, 26, 4);   // backrest
-    g.fillStyle(0x7c2d12); g.fillRect(0, 4, 26, 6);   // seat
-    g.generateTexture('bench', 26, 10);
-
-    g.destroy();
-  }
-
-  // Random-walks a sprite within the break room only -- this is the
-  // "resting" behavior, so it deliberately does NOT roam the whole floor;
-  // agents physically leave their desk and walk over to the break room
-  // (coffee machine / benches) instead of idling in place.
-  wander(entry) {
-    if (!entry.wandering) return;
-    const BASE_SCALE = 2;
-    const sprite = entry.sprite;
-    const { minX, maxX, minY, maxY } = BREAK_ZONE;
-    const step = () => {
-      if (!entry.wandering) return;
-      const tx = Phaser.Math.Between(minX, maxX);
-      const ty = Phaser.Math.Between(minY, maxY);
-      const dist = Phaser.Math.Distance.Between(sprite.x, sprite.y, tx, ty);
-      const duration = Phaser.Math.Clamp(dist * 15, 600, 3200);
-      sprite.setScale(tx < sprite.x ? -BASE_SCALE : BASE_SCALE, BASE_SCALE);
-      this.tweens.add({
-        targets: sprite, x: tx, y: ty, duration, ease: 'Sine.easeInOut',
-        onUpdate: () => sprite.setDepth(sprite.y),
-        onComplete: () => {
-          if (!entry.wandering) return;
-          // Occasionally pause at the coffee machine for a cup -- a
-          // visible cup appears next to whoever isn't currently working.
-          if (Phaser.Math.Between(0, 100) < 35) this.showTea(entry);
-          this.time.delayedCall(Phaser.Math.Between(1200, 3500), step);
-        }
-      });
-    };
-    step();
-  }
-
-  showTea(entry) {
-    const key = 'tea_' + entry.room.key;
-    if (this.bubbles[key]) this.bubbles[key].destroy();
-    const cup = this.add.image(entry.sprite.x + 14, entry.sprite.y - 4, 'teacup')
-      .setScale(1.6).setDepth(entry.sprite.y + 1);
-    this.bubbles[key] = cup;
-    this.time.delayedCall(2200, () => { cup.destroy(); delete this.bubbles[key]; });
-  }
-
-  // Toggles an agent between "working" (seated at their own desk, laptop
-  // lit, small typing bob) and "relaxing" (free-roaming the shared floor,
-  // occasional tea break) -- driven by real pipeline activity. Once an
-  // agent starts working they stay at their desk indefinitely -- no
-  // auto-revert timer -- since a real pipeline stage can be genuinely
-  // done with them (e.g. PM after locking the PRD) without another event
-  // ever landing in their room again; only an explicit setWorking(key,
-  // false) call would send them back to the break room.
-  setWorking(key, working) {
-    const entry = this.roomSprites[key];
-    if (!entry) return;
-
-    if (entry.working === working) return; // already in that state, nothing to do
-    entry.working = working;
-    entry.wandering = !working;
-
-    const sprite = entry.sprite;
-    this.tweens.killTweensOf(sprite);
-    if (entry.bobTween) { entry.bobTween.remove(); entry.bobTween = null; }
-
-    if (working) {
-      sprite.setScale(2, 2);
-      this.tweens.add({
-        targets: sprite, x: entry.chairPos.x, y: entry.chairPos.y, duration: 700, ease: 'Sine.easeInOut',
-        onUpdate: () => sprite.setDepth(sprite.y),
-        onComplete: () => {
-          entry.bobTween = this.tweens.add({
-            targets: sprite, y: entry.chairPos.y - 2, duration: 260, yoyo: true, repeat: -1, ease: 'Sine.easeInOut'
-          });
-        }
-      });
-    } else {
-      this.time.delayedCall(250, () => this.wander(entry));
-    }
-  }
-
-  showBubble(roomKey, text, color = '#e2e8f0') {
-    const entry = this.roomSprites[roomKey];
-    if (!entry) return;
-    if (this.bubbles[roomKey]) this.bubbles[roomKey].destroy();
-    const sx = Phaser.Math.Clamp(entry.sprite.x - 95, 10, this.scale.width - 210);
-    const sy = Math.max(entry.sprite.y - 60, 10);
-    const bubble = this.add.text(sx, sy, text, {
-      fontFamily: 'Courier New', fontSize: '11px', color, backgroundColor: '#000000cc',
-      padding: { x: 6, y: 4 }, wordWrap: { width: 190 }
-    }).setDepth(2000);
-    this.bubbles[roomKey] = bubble;
-    this.time.delayedCall(4000, () => { bubble.destroy(); delete this.bubbles[roomKey]; });
-  }
-
-  // Sets exactly one room "working" (seated at their desk) and every other
-  // room "relaxing" -- driven by the real current-project stage
-  // (/api/pipeline-status, polled every 15s), not by transient event
-  // animation. This is what makes the correct agent show up seated even
-  // right after a fresh page load, when no "new" event has fired yet.
-  setActiveRoom(roomKey) {
-    Object.keys(this.roomSprites).forEach((key) => this.setWorking(key, key === roomKey));
-  }
-
-  walkPackage(fromKey, toKey, tint = 0xffffff, onDone) {
-    const from = this.roomSprites[fromKey].room;
-    const to = this.roomSprites[toKey].room;
-    this.package.setFillStyle(tint);
-    this.package.setPosition(from.x, from.y);
-    this.package.setVisible(true);
-    this.tweens.add({
-      targets: this.package, x: to.x, y: to.y, duration: 1200, ease: 'Sine.easeInOut',
-      onComplete: () => { this.package.setVisible(false); if (onDone) onDone(); }
-    });
-  }
-
-  setWaiting(reason) {
-    const banner = document.getElementById('waiting-banner');
-    if (reason) {
-      banner.textContent = `⏸ WAITING ON YOU — ${reason}`;
-      banner.style.display = 'block';
-    } else {
-      banner.style.display = 'none';
-    }
-  }
-
-  ticker(text) {
-    document.getElementById('ticker-text').textContent = text;
-  }
-
-  // Plays one real event from /api/pipeline-events (see the poller below,
-  // driven by GitHub's actual activity feed instead of a scripted demo).
-  playEvent(room, text) {
-    if (!this.roomSprites[room]) room = 'code_vault'; // fallback for unmapped rooms
-    this.showBubble(room, text, '#e2e8f0');
-    this.ticker(text);
-    this.setWorking(room, true);
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
   }
 }
+</script>
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { CSS2DRenderer, CSS2DObject } from 'three/addons/renderers/CSS2DRenderer.js';
 
-const retrodevGame = new Phaser.Game({
-  type: Phaser.AUTO,
-  width: 860,
-  height: 520,
-  parent: 'game-container',
-  backgroundColor: '#0b0e14',
-  scene: [PipelineScene],
-  // Crisp nearest-neighbor upscaling for the 16x16 sprites (Kenney's Tiny
-  // Dungeon art) -- without this Phaser bilinear-smooths every character/
-  // tile as it scales them up, which reads as blurry instead of pixel-art.
-  pixelArt: true,
-  roundPixels: true,
-  scale: { mode: Phaser.Scale.FIT, autoCenter: Phaser.Scale.CENTER_BOTH }
+/*
+ * Real-time 3D pipeline monitor. Each pipeline stage/agent is a glowing
+ * node arranged along a curved path in 3D space; a tube along that same
+ * path shows the pipeline flow, and a traveling pulse animates whenever a
+ * real handoff/event happens. This replaces the earlier retro pixel-art
+ * office -- same backend (/api/pipeline-status, /api/pipeline-events,
+ * /api/submit-requirement, /api/answer, /api/run-agent-step), new
+ * visualization layer built for actually monitoring agent state at a
+ * glance (who's active, who's blocked on you, what they last did).
+ */
+
+const ROOMS = [
+  { key: 'planning_deck',    label: 'Planning Deck',    agent: 'Product Manager', name: 'Priya', color: 0x3b82f6 },
+  { key: 'design_studio',    label: 'Design Studio',    agent: 'Designer',        name: 'Dara',  color: 0x14b8a6 },
+  { key: 'code_vault',       label: 'Code Vault',       agent: 'Developer',       name: 'Dev',   color: 0xf59e0b },
+  { key: 'sandbox_lab',      label: 'Sandbox Lab',      agent: 'QA Tester',       name: 'Quinn', color: 0xef4444 },
+  { key: 'deploy_bay',       label: 'Deploy Bay',       agent: 'DevOps',          name: 'Devon', color: 0x8b5cf6 },
+  { key: 'uat_lounge',       label: 'UAT Lounge',       agent: 'UAT Coordinator', name: 'Uma',   color: 0x06b6d4 },
+  { key: 'broadcast_studio', label: 'Broadcast Studio', agent: 'Social Expert',   name: 'Sasha', color: 0xec4899 },
+];
+
+// ---------- Scene setup ----------
+const wrap = document.getElementById('scene-wrap');
+const scene = new THREE.Scene();
+scene.fog = new THREE.FogExp2(0x05070d, 0.045);
+
+const camera = new THREE.PerspectiveCamera(45, wrap.clientWidth / wrap.clientHeight, 0.1, 200);
+camera.position.set(0, 3.5, 13);
+
+const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+renderer.setSize(wrap.clientWidth, wrap.clientHeight);
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.1;
+wrap.appendChild(renderer.domElement);
+
+const labelRenderer = new CSS2DRenderer();
+labelRenderer.setSize(wrap.clientWidth, wrap.clientHeight);
+labelRenderer.domElement.style.position = 'absolute';
+labelRenderer.domElement.style.top = '0';
+labelRenderer.domElement.style.left = '0';
+labelRenderer.domElement.classList.add('css2d-layer');
+wrap.appendChild(labelRenderer.domElement);
+
+const controls = new OrbitControls(camera, labelRenderer.domElement);
+controls.enableDamping = true;
+controls.dampingFactor = 0.06;
+controls.minDistance = 6;
+controls.maxDistance = 26;
+controls.autoRotate = true;
+controls.autoRotateSpeed = 0.35;
+controls.target.set(0, 0.5, 0);
+
+window.addEventListener('resize', () => {
+  camera.aspect = wrap.clientWidth / wrap.clientHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(wrap.clientWidth, wrap.clientHeight);
+  labelRenderer.setSize(wrap.clientWidth, wrap.clientHeight);
 });
-// Exposed so the real-event pollers below can drive the Phaser scene
-// without needing to know about it directly.
-window.retrodevTicker = (text) => {
-  const scene = retrodevGame.scene.keys.pipeline;
-  if (scene) scene.ticker(text);
-};
-window.retrodevPlayEvent = (room, text) => {
-  const scene = retrodevGame.scene.keys.pipeline;
-  if (scene) scene.playEvent(room, text);
-};
-window.retrodevSetWaiting = (reason) => {
-  const scene = retrodevGame.scene.keys.pipeline;
-  if (scene) scene.setWaiting(reason);
-};
-window.retrodevSetActiveRoom = (roomKey) => {
-  const scene = retrodevGame.scene.keys.pipeline;
-  if (scene) scene.setActiveRoom(roomKey);
-};
 
-// --- Requirement submission form -> /api/submit-requirement ---
-// The operator secret is stored only in this browser's localStorage; it's
-// never bundled into the page source. This is a lightweight deterrent
-// (single-operator app per PRD v1), not real auth — don't reuse this
-// pattern if this ever becomes multi-user.
+// ---------- Lighting ----------
+scene.add(new THREE.AmbientLight(0x8899ff, 0.35));
+const key = new THREE.PointLight(0x6ee7ff, 2.2, 40, 2);
+key.position.set(0, 8, 6);
+scene.add(key);
+const rim = new THREE.PointLight(0xa78bfa, 1.4, 40, 2);
+rim.position.set(-6, 4, -8);
+scene.add(rim);
+
+// ---------- Starfield background ----------
+{
+  const starGeo = new THREE.BufferGeometry();
+  const N = 1400;
+  const pos = new Float32Array(N * 3);
+  for (let i = 0; i < N; i++) {
+    const r = 40 + Math.random() * 60;
+    const theta = Math.random() * Math.PI * 2;
+    const phi = Math.acos(2 * Math.random() - 1);
+    pos[i * 3] = r * Math.sin(phi) * Math.cos(theta);
+    pos[i * 3 + 1] = r * Math.sin(phi) * Math.sin(theta);
+    pos[i * 3 + 2] = r * Math.cos(phi);
+  }
+  starGeo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+  const starMat = new THREE.PointsMaterial({ color: 0xaad4ff, size: 0.06, transparent: true, opacity: 0.55 });
+  scene.add(new THREE.Points(starGeo, starMat));
+}
+
+// ---------- Ground grid (subtle, gives depth reference) ----------
+{
+  const grid = new THREE.GridHelper(40, 40, 0x1e293b, 0x131a26);
+  grid.position.y = -2.4;
+  grid.material.transparent = true;
+  grid.material.opacity = 0.5;
+  scene.add(grid);
+}
+
+// ---------- Pipeline path + nodes ----------
+function nodePosition(i, total) {
+  const spread = 4.6;
+  const x = (i - (total - 1) / 2) * spread;
+  const y = Math.sin(i * 0.9) * 0.9;
+  const z = Math.cos(i * 0.6) * 1.6;
+  return new THREE.Vector3(x, y, z);
+}
+
+const positions = ROOMS.map((_, i) => nodePosition(i, ROOMS.length));
+const curve = new THREE.CatmullRomCurve3(positions, false, 'catmullrom', 0.2);
+
+// Glowing tube along the pipeline path
+const tubeGeo = new THREE.TubeGeometry(curve, 200, 0.045, 8, false);
+const tubeMat = new THREE.MeshBasicMaterial({ color: 0x2c3a55, transparent: true, opacity: 0.7 });
+scene.add(new THREE.Mesh(tubeGeo, tubeMat));
+
+// Soft glow sprite texture (radial gradient), reused for every node's halo
+function makeGlowTexture() {
+  const c = document.createElement('canvas');
+  c.width = c.height = 128;
+  const ctx = c.getContext('2d');
+  const g = ctx.createRadialGradient(64, 64, 0, 64, 64, 64);
+  g.addColorStop(0, 'rgba(255,255,255,1)');
+  g.addColorStop(0.35, 'rgba(255,255,255,0.5)');
+  g.addColorStop(1, 'rgba(255,255,255,0)');
+  ctx.fillStyle = g;
+  ctx.fillRect(0, 0, 128, 128);
+  return new THREE.CanvasTexture(c);
+}
+const glowTex = makeGlowTexture();
+
+const nodeState = {}; // key -> { mesh, glow, ring, label, working, awaiting }
+
+ROOMS.forEach((room, i) => {
+  const pos = positions[i];
+  const group = new THREE.Group();
+  group.position.copy(pos);
+  scene.add(group);
+
+  const geo = new THREE.IcosahedronGeometry(0.34, 1);
+  const mat = new THREE.MeshStandardMaterial({
+    color: room.color, emissive: room.color, emissiveIntensity: 0.35,
+    metalness: 0.4, roughness: 0.25,
+  });
+  const mesh = new THREE.Mesh(geo, mat);
+  mesh.userData.roomKey = room.key;
+  group.add(mesh);
+
+  const glow = new THREE.Sprite(new THREE.SpriteMaterial({
+    map: glowTex, color: room.color, transparent: true, opacity: 0.55, depthWrite: false,
+  }));
+  glow.scale.set(1.6, 1.6, 1.6);
+  group.add(glow);
+
+  // Thin ring shown only when awaiting-human (a distinct alert cue)
+  const ringGeo = new THREE.TorusGeometry(0.52, 0.015, 8, 48);
+  const ringMat = new THREE.MeshBasicMaterial({ color: 0xf87171, transparent: true, opacity: 0 });
+  const ring = new THREE.Mesh(ringGeo, ringMat);
+  ring.rotation.x = Math.PI / 2.2;
+  group.add(ring);
+
+  const el = document.createElement('div');
+  el.className = 'node-label';
+  el.innerHTML = `<div><span class="dot"></span><span class="name">${room.name}</span></div><div class="role">${room.agent}</div>`;
+  el.addEventListener('click', () => selectRoom(room.key));
+  const label = new CSS2DObject(el);
+  label.position.set(0, -0.7, 0);
+  group.add(label);
+
+  nodeState[room.key] = { group, mesh, glow, ring, labelEl: el, working: false, awaiting: false, room };
+});
+
+// ---------- Handoff pulse: a small glowing sphere traveling the curve ----------
+const pulseGeo = new THREE.SphereGeometry(0.09, 12, 12);
+function spawnPulse(fromKey, toKey, color) {
+  const fromIdx = ROOMS.findIndex((r) => r.key === fromKey);
+  const toIdx = ROOMS.findIndex((r) => r.key === toKey);
+  if (fromIdx === -1 || toIdx === -1 || fromIdx === toIdx) return;
+  const mat = new THREE.MeshBasicMaterial({ color: color || 0x6ee7ff });
+  const mesh = new THREE.Mesh(pulseGeo, mat);
+  scene.add(mesh);
+  const t0 = fromIdx / (ROOMS.length - 1);
+  const t1 = toIdx / (ROOMS.length - 1);
+  const start = performance.now();
+  const duration = 1400;
+  function step(now) {
+    const t = Math.min(1, (now - start) / duration);
+    const curveT = t0 + (t1 - t0) * t;
+    mesh.position.copy(curve.getPointAt(Math.max(0, Math.min(1, curveT))));
+    mesh.scale.setScalar(1 - 0.3 * t);
+    if (t < 1) requestAnimationFrame(step);
+    else scene.remove(mesh);
+  }
+  requestAnimationFrame(step);
+}
+
+// ---------- Selection / detail panel ----------
+let selectedKey = null;
+const lastMessageByRoom = {};
+
+function renderAgentDetail(key) {
+  const body = document.getElementById('agent-detail-body');
+  const entry = nodeState[key];
+  if (!entry) { body.className = 'empty'; body.innerHTML = 'Click a node in the 3D view to inspect an agent.'; return; }
+  body.className = '';
+  const stateClass = entry.working ? 'working' : 'idle';
+  const stateText = entry.awaiting ? 'Waiting on you' : (entry.working ? 'Working' : 'Idle');
+  const last = lastMessageByRoom[key];
+  body.innerHTML = `
+    <div class="row">
+      <div class="swatch" style="background:#${entry.room.color.toString(16).padStart(6,'0')}"></div>
+      <div><div class="name">${entry.room.name}</div><div class="role">${entry.room.agent} — ${entry.room.label}</div></div>
+      <div class="state ${stateClass}">${stateText}</div>
+    </div>
+    <div class="last-msg">${last ? escapeHtml(last.text) + (last.ts ? '\\n\\n' + new Date(last.ts).toLocaleString() : '') : 'No activity recorded yet this session.'}</div>
+  `;
+}
+
+function selectRoom(key) {
+  selectedKey = key;
+  Object.values(nodeState).forEach((n) => n.mesh.scale.setScalar(n.room.key === key ? 1.25 : 1));
+  renderAgentDetail(key);
+}
+
+function escapeHtml(s) {
+  return String(s).replace(/[&<>"']/g, (c) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+// Raycast click-to-select directly on the 3D nodes too (not just labels)
+const raycaster = new THREE.Raycaster();
+const pointer = new THREE.Vector2();
+renderer.domElement.addEventListener('click', (e) => {
+  const rect = renderer.domElement.getBoundingClientRect();
+  pointer.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
+  pointer.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
+  raycaster.setFromCamera(pointer, camera);
+  const hits = raycaster.intersectObjects(Object.values(nodeState).map((n) => n.mesh));
+  if (hits.length) selectRoom(hits[0].object.userData.roomKey);
+});
+
+// ---------- Public API used by the pollers below ----------
+function setActiveRoom(roomKey) {
+  Object.entries(nodeState).forEach(([key, n]) => {
+    n.working = key === roomKey;
+    n.labelEl.querySelector('.dot').className = 'dot' + (n.working ? ' working' : n.awaiting ? ' waiting' : '');
+  });
+  if (selectedKey) renderAgentDetail(selectedKey);
+}
+
+function setAwaitingRoom(roomKey, isAwaiting) {
+  const n = nodeState[roomKey];
+  if (!n) return;
+  n.awaiting = isAwaiting;
+  n.labelEl.querySelector('.dot').className = 'dot' + (n.working ? ' working' : n.awaiting ? ' waiting' : '');
+  if (selectedKey === roomKey) renderAgentDetail(roomKey);
+}
+
+let lastActiveForPulse = null;
+function playEvent(roomKey, text) {
+  const key = nodeState[roomKey] ? roomKey : 'code_vault';
+  lastMessageByRoom[key] = { text, ts: Date.now() };
+  if (lastActiveForPulse && lastActiveForPulse !== key) spawnPulse(lastActiveForPulse, key, nodeState[key].room.color);
+  lastActiveForPulse = key;
+  if (selectedKey === key) renderAgentDetail(key);
+  ticker(text);
+}
+
+function ticker(text) {
+  document.getElementById('ticker-text').textContent = text;
+}
+
+function setWaiting(reason) {
+  const banner = document.getElementById('waiting-banner');
+  if (reason) { banner.textContent = `⏸ WAITING ON YOU — ${reason}`; banner.style.display = 'block'; }
+  else { banner.style.display = 'none'; }
+}
+
+window.retrodevPlayEvent = playEvent;
+window.retrodevTicker = ticker;
+window.retrodevSetWaiting = setWaiting;
+window.retrodevSetActiveRoom = setActiveRoom;
+window.retrodevSetAwaitingRoom = setAwaitingRoom;
+
+// ---------- Render loop ----------
+const clock = new THREE.Clock();
+function animate() {
+  requestAnimationFrame(animate);
+  const t = clock.getElapsedTime();
+  Object.values(nodeState).forEach((n) => {
+    const pulse = n.working ? (1 + Math.sin(t * 3) * 0.12) : 1;
+    n.mesh.rotation.y += n.working ? 0.02 : 0.004;
+    n.mesh.rotation.x += 0.003;
+    n.mesh.material.emissiveIntensity = n.working ? 0.9 + Math.sin(t * 3) * 0.3 : 0.25;
+    n.glow.scale.setScalar(1.6 * pulse * (n.working ? 1.15 : 1));
+    n.ring.material.opacity = n.awaiting ? 0.55 + Math.sin(t * 4) * 0.35 : 0;
+    n.ring.scale.setScalar(1 + (n.awaiting ? Math.sin(t * 4) * 0.05 : 0));
+    if (n.mesh.scale.x < (n.room.key === selectedKey ? 1.25 : 1)) n.mesh.scale.addScalar(0.02);
+    else if (n.mesh.scale.x > (n.room.key === selectedKey ? 1.25 : 1)) n.mesh.scale.addScalar(-0.02);
+  });
+  controls.update();
+  renderer.render(scene, camera);
+  labelRenderer.render(scene, camera);
+}
+animate();
+
+// =====================================================================
+// Everything below talks to the same backend as before -- only the
+// visualization functions above changed.
+// =====================================================================
+
+// --- Submit requirement ---
 (function () {
   const reqInput = document.getElementById('req-input');
   const secretInput = document.getElementById('secret-input');
@@ -539,13 +573,13 @@ window.retrodevSetActiveRoom = (roomKey) => {
   submitBtn.addEventListener('click', async () => {
     const requirement = reqInput.value.trim();
     const secret = secretInput.value.trim();
-    if (!requirement) { status.textContent = 'Enter a requirement first.'; status.style.color = '#f87171'; return; }
-    if (!secret) { status.textContent = 'Enter the operator secret.'; status.style.color = '#f87171'; return; }
+    if (!requirement) { status.textContent = 'Enter a requirement first.'; status.style.color = 'var(--danger)'; return; }
+    if (!secret) { status.textContent = 'Enter the operator secret.'; status.style.color = 'var(--danger)'; return; }
 
     localStorage.setItem('retrodev_secret', secret);
     submitBtn.disabled = true;
     status.textContent = 'Sending to Product Manager...';
-    status.style.color = '#93c5fd';
+    status.style.color = 'var(--accent)';
 
     try {
       const res = await fetch('/api/submit-requirement', {
@@ -555,24 +589,19 @@ window.retrodevSetActiveRoom = (roomKey) => {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
-      status.textContent = `Opened ${data.issue_url} — PM will pick it up on its next scheduled run.`;
-      status.style.color = '#4ade80';
+      status.textContent = `Opened ${data.issue_url}`;
+      status.style.color = 'var(--ok)';
       reqInput.value = '';
     } catch (err) {
       status.textContent = `Failed: ${err.message}`;
-      status.style.color = '#f87171';
+      status.style.color = 'var(--danger)';
     } finally {
       submitBtn.disabled = false;
     }
   });
 })();
 
-// --- "Run Next Pipeline Step" button: real automation, no Claude Code ---
-// Calls /api/run-agent-step, which itself calls the Anthropic API directly
-// to act as whichever agent role (PM/Designer/UAT) is next due, then
-// writes the result to GitHub for real. One click = one real, billed
-// API call -- deliberately not on a timer, so cost stays bounded to what
-// you actually trigger.
+// --- Run Next Pipeline Step ---
 (function () {
   const btn = document.getElementById('run-step-btn');
   const status = document.getElementById('automation-status');
@@ -584,11 +613,11 @@ window.retrodevSetActiveRoom = (roomKey) => {
 
   btn.addEventListener('click', async () => {
     const secret = (localStorage.getItem('retrodev_secret') || '').trim();
-    if (!secret) { status.textContent = 'Enter the operator secret above first.'; status.style.color = '#f87171'; return; }
+    if (!secret) { status.textContent = 'Enter the operator secret above first.'; status.style.color = 'var(--danger)'; return; }
 
     btn.disabled = true;
     status.textContent = 'Running next pipeline step...';
-    status.style.color = '#93c5fd';
+    status.style.color = 'var(--accent)';
 
     try {
       const res = await fetch('/api/run-agent-step', {
@@ -600,37 +629,29 @@ window.retrodevSetActiveRoom = (roomKey) => {
 
       if (!data.action_taken) {
         status.textContent = data.summary;
-        status.style.color = '#94a3b8';
+        status.style.color = 'var(--text-dim)';
       } else {
         status.textContent = `${data.role} on #${data.issue_number}: ${data.summary}`;
-        status.style.color = '#4ade80';
+        status.style.color = 'var(--ok)';
         const room = ROLE_ROOM[data.role];
-        if (room && window.retrodevPlayEvent) window.retrodevPlayEvent(room, `${data.role}: ${data.summary}`);
+        if (room) window.retrodevPlayEvent(room, `${data.role}: ${data.summary}`);
       }
     } catch (err) {
       status.textContent = `Failed: ${err.message}`;
-      status.style.color = '#f87171';
+      status.style.color = 'var(--danger)';
     } finally {
       btn.disabled = false;
     }
   });
 })();
 
-// --- Poll /api/pipeline-status for real "awaiting-human" items ---
-// Renders a pulsing "REQUIRES YOUR CONFIRMATION" badge with an inline
-// reply box per pending issue (PRs link out to GitHub instead, since
-// merging isn't something to do from a text box). Polling, not a
-// websocket, per PRD v1's cron-based/free-tier-first design.
+// --- Poll /api/pipeline-status: confirmation badges + current project + active node ---
 (function () {
   const panel = document.getElementById('confirm-panel');
   const itemsEl = document.getElementById('confirm-items');
   const secretInput = document.getElementById('secret-input');
   let lastCount = 0;
 
-  // Issue numbers you've already replied to, persisted so a page reload
-  // doesn't forget and show the reply box again. Cleared automatically
-  // once the issue drops out of "pending" (i.e. the agent removed the
-  // awaiting-human label after processing your answer).
   const answeredKey = 'retrodev_answered_issues';
   const answered = new Set(JSON.parse(localStorage.getItem(answeredKey) || '[]'));
   function saveAnswered() { localStorage.setItem(answeredKey, JSON.stringify([...answered])); }
@@ -640,7 +661,6 @@ window.retrodevSetActiveRoom = (roomKey) => {
   }
 
   function render(pending) {
-    // Forget answered-flags for anything no longer pending (resolved).
     const stillPending = new Set(pending.map((i) => String(i.number)));
     let changed = false;
     for (const n of [...answered]) { if (!stillPending.has(n)) { answered.delete(n); changed = true; } }
@@ -653,7 +673,7 @@ window.retrodevSetActiveRoom = (roomKey) => {
       return `
       <div class="item${isAnswered ? ' answered' : ''}" data-issue="${item.number}">
         <div class="title">#${item.number} — ${escapeHtml(item.title)}</div>
-        ${isAnswered ? '<div class="flagged">✓ FLAGGED — ANSWER SENT, AWAITING PIPELINE</div>' : ''}
+        ${isAnswered ? '<div class="flagged">✓ Flagged — answer sent, awaiting pipeline</div>' : ''}
         <div class="snippet">${escapeHtml(item.snippet)}</div>
         ${item.is_pull_request
           ? `<a href="${item.url}" target="_blank" rel="noopener">Review &amp; merge on GitHub →</a>`
@@ -662,7 +682,7 @@ window.retrodevSetActiveRoom = (roomKey) => {
               : `<textarea rows="2" placeholder="Type your answer/decision..."></textarea>
                  <button data-action="answer">Send answer</button>
                  <a href="${item.url}" target="_blank" rel="noopener" style="margin-left:8px;">(or view on GitHub)</a>
-                 <div class="status"></div>`
+                 <div class="status-line"></div>`
             )
         }
       </div>
@@ -675,7 +695,7 @@ window.retrodevSetActiveRoom = (roomKey) => {
     const itemEl = e.target.closest('.item');
     const issueNumber = itemEl.dataset.issue;
     const textarea = itemEl.querySelector('textarea');
-    const statusEl = itemEl.querySelector('.status');
+    const statusEl = itemEl.querySelector('.status-line');
     const answer = textarea.value.trim();
     const secret = secretInput.value.trim();
     if (!answer) { statusEl.textContent = 'Type an answer first.'; return; }
@@ -694,7 +714,7 @@ window.retrodevSetActiveRoom = (roomKey) => {
       answered.add(String(issueNumber));
       saveAnswered();
       textarea.value = '';
-      poll(); // re-render immediately so the "FLAGGED" state shows without waiting for the next 15s tick
+      poll();
     } catch (err) {
       statusEl.textContent = `Failed: ${err.message}`;
     } finally {
@@ -708,9 +728,11 @@ window.retrodevSetActiveRoom = (roomKey) => {
     currentEl.className = '';
     currentEl.innerHTML = `
       <div class="title">#${current.number} — ${escapeHtml(current.title)}</div>
-      <span class="stage">${escapeHtml(current.stage)}</span>
-      ${current.awaiting_human ? '<span class="waiting">⚠ waiting on you</span>' : ''}
-      <div style="margin-top:4px;"><a href="${current.url}" target="_blank" rel="noopener">view thread on GitHub →</a></div>
+      <div class="meta-row">
+        <span class="stage">${escapeHtml(current.stage)}</span>
+        ${current.awaiting_human ? '<span class="waiting">⚠ waiting on you</span>' : ''}
+      </div>
+      <a href="${current.url}" target="_blank" rel="noopener">view thread on GitHub →</a>
     `;
   }
 
@@ -720,9 +742,19 @@ window.retrodevSetActiveRoom = (roomKey) => {
       const data = await res.json();
       render(data.pending || []);
       renderCurrent(data.current || null);
-      if (window.retrodevSetActiveRoom) {
-        window.retrodevSetActiveRoom(data.current ? data.current.room : null);
+      if (window.retrodevSetActiveRoom) window.retrodevSetActiveRoom(data.current ? data.current.room : null);
+
+      // Reset all awaiting-rings, then set the ones actually pending.
+      const pendingRooms = new Set();
+      (data.pending || []).forEach((item) => {
+        // We don't get a room key back from pipeline-status for each pending
+        // item, but the current project's room is enough for the common
+        // single-project case; awaiting state on that room is set below.
+      });
+      if (data.current && data.current.room && window.retrodevSetAwaitingRoom) {
+        window.retrodevSetAwaitingRoom(data.current.room, Boolean(data.current.awaiting_human));
       }
+
       const pending = data.pending || [];
       if (pending.length !== lastCount) {
         lastCount = pending.length;
@@ -739,17 +771,11 @@ window.retrodevSetActiveRoom = (roomKey) => {
   setInterval(poll, 15000);
 })();
 
-// --- Poll /api/pipeline-events for the real room animations + the
-// ChatDev-style persistent dialogue transcript in the sidebar. ---
-// Replaces the old scripted mock sequence with GitHub's actual activity.
+// --- Poll /api/pipeline-events: dialogue log + node pulse animation ---
 (function () {
   const lastSeenKey = 'retrodev_last_event_ts';
-  // lastSeen is persisted per browser ORIGIN (not per page path), so a
-  // prior visit to /dashboard/index.html already advances it -- only used
-  // below to avoid re-playing old scene animations, never to hide history
-  // from the log itself (the log always shows what's actually fetched).
   let lastSeen = localStorage.getItem(lastSeenKey) || '';
-  const shownInLog = new Set(); // ts values already appended this page load
+  const shownInLog = new Set();
 
   const ROOM_META = {
     planning_deck:    { label: 'Priya (Product Manager)', color: '#3b82f6' },
@@ -787,13 +813,6 @@ window.retrodevSetActiveRoom = (roomKey) => {
       const res = await fetch('/api/pipeline-events', { cache: 'no-store' });
       const data = await res.json();
       const events = data.events || [];
-      // The log always shows every event this poll actually returned (up
-      // to the API's last-20 cap), deduped only against what THIS page
-      // load has already appended -- so reloading always shows recent
-      // history instead of "nothing new since last visit." The persisted
-      // lastSeen cursor is used separately, only to avoid re-playing scene
-      // animations (character walks/bubbles) for events already animated
-      // in a previous visit.
       const toLog = events.filter((e) => !shownInLog.has(e.ts));
       let animateDelay = 0;
       toLog.forEach((e) => {
@@ -801,7 +820,7 @@ window.retrodevSetActiveRoom = (roomKey) => {
         appendToLog(e);
         if (!lastSeen || e.ts > lastSeen) {
           const delay = animateDelay;
-          animateDelay += 1500;
+          animateDelay += 1200;
           setTimeout(() => window.retrodevPlayEvent && window.retrodevPlayEvent(e.room, e.text), delay);
         }
       });
