@@ -1,56 +1,42 @@
-name: Deploy Dev (Vercel preview)
+name: Smoke Test Dev (Vercel)
 
-# Autonomous — dev deploys are low-risk, reversible, internal.
-# No human approval gate here by design (see deploy-uat.yml for the gated one).
+# Autonomous — dev deploys are low-risk, reversible, internal, and handled
+# by Vercel's own native GitHub integration (already connected, zero
+# secrets needed for that part — confirmed working). This workflow's job
+# is only to react to that deployment and run smoke tests against it, not
+# to perform the deploy itself. See deploy-uat.yml for the CLI/token-based
+# gated promotion step, which still needs VERCEL_TOKEN.
 
 on:
-  push:
-    branches: [main]
-  workflow_dispatch: {}
+  deployment_status: {}
+  workflow_dispatch:
+    inputs:
+      preview_url:
+        description: "Deployment URL to smoke test (manual run)"
+        required: false
 
 jobs:
-  deploy-dev:
-    runs-on: ubuntu-latest
-    environment: dev
-    env:
-      VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
-      VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Install Vercel CLI
-        run: npm install --global vercel@latest
-
-      - name: Pull Vercel project settings
-        run: vercel pull --yes --environment=preview --token=${{ secrets.VERCEL_TOKEN }}
-
-      - name: Build
-        run: vercel build --token=${{ secrets.VERCEL_TOKEN }}
-
-      - name: Deploy preview
-        id: deploy
-        run: |
-          url=$(vercel deploy --prebuilt --token=${{ secrets.VERCEL_TOKEN }})
-          echo "url=$url" >> "$GITHUB_OUTPUT"
-
-      - name: Emit dev_deploy_ready event
-        run: |
-          echo "dev_deploy_ready: ${{ steps.deploy.outputs.url }}"
-          # DevOps agent / relay picks this up from the workflow run + deployment_status webhook
-
-    outputs:
-      preview_url: ${{ steps.deploy.outputs.url }}
-
   smoke-test:
-    needs: deploy-dev
+    if: github.event_name == 'workflow_dispatch' || github.event.deployment_status.state == 'success'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: 20
-      - run: npm ci
-      - name: Smoke test against preview
-        run: npm run test:smoke --if-present -- --base-url="${{ needs.deploy-dev.outputs.preview_url }}"
+      - run: npm ci --if-present
+
+      - name: Resolve target URL
+        id: target
+        run: |
+          url="${{ github.event.inputs.preview_url || github.event.deployment_status.target_url }}"
+          echo "url=$url" >> "$GITHUB_OUTPUT"
+
+      - name: Emit dev_deploy_ready event
+        run: echo "dev_deploy_ready ${{ steps.target.outputs.url }}"
+        # DevOps/QA agents pick this up from the workflow run + webhook relay.
+
+      - name: Smoke test against deployment
+        run: npm run test:smoke --if-present -- --base-url="${{ steps.target.outputs.url }}"
         # On failure: QA Tester / Developer agents pick up smoke_failed via the
         # resolve-until-done loop defined in qa-tester.md — no fixed retry cap here.

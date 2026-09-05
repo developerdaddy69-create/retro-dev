@@ -45,9 +45,22 @@ land; each has a status: `done`, `in progress`, `blocked (needs you)`.
       push. Caught and fixed a real YAML syntax bug in `deploy-uat.yml`
       (backslash line-continuation inside a `run: |` block broke GitHub's
       parser) — see commit `a4dcfd1`.
-- [ ] `CI` / `Deploy Dev` will keep failing (`npm ci` — no `package.json`
-      yet) until real application code exists in `src/`. This is expected,
-      not a bug — nothing to fix until there's an actual app to build.
+- [x] Vercel connected (team `retro-dev1`, project `retro-dev`) — confirmed
+      LIVE at https://retro-dev-eight.vercel.app/dashboard/index.html via
+      Vercel's own native GitHub integration (zero secrets needed for this
+      part, auto-deploys every push to `main`)
+- [x] Added `vercel.json` rewrite so the bare domain root serves the
+      dashboard too, instead of 404ing
+- [x] Simplified `deploy-dev.yml`: it no longer redeploys via the Vercel
+      CLI (redundant with Vercel's native integration, and needed 3
+      secrets we don't have). It now reacts to Vercel's own
+      `deployment_status` webhook and only runs smoke tests against
+      whatever URL Vercel just deployed.
+- [ ] `CI` will keep failing (`npm ci` — no `package.json` yet) until real
+      application code exists in `src/`. Expected, not a bug.
+- [ ] `deploy-uat.yml` still needs `VERCEL_TOKEN` (CLI-based alias
+      promotion, behind the required-reviewer gate) — separate from the
+      dev flow above.
 - [ ] Connect Vercel (free tier) to the repo for dev-preview deploys
 - [ ] Set up the GitHub Environment "uat" with required reviewers (you)
 - [ ] Deploy the webhook→WebSocket relay (Cloudflare Workers free tier) and
