@@ -34,6 +34,32 @@
   }
   #submit-panel button:disabled { opacity: 0.5; cursor: default; }
   #submit-status { font-size: 11px; margin-top: 6px; min-height: 14px; }
+
+  #confirm-panel {
+    position: fixed; top: 46px; left: 12px; width: 380px;
+    background: #1a0f0f; border: 2px solid #f87171; padding: 12px; z-index: 6;
+    font-family: 'Courier New', monospace; color: #fecaca; display: none;
+  }
+  #confirm-panel .badge {
+    display: inline-block; background: #f87171; color: #000; font-weight: bold;
+    font-size: 11px; padding: 3px 8px; letter-spacing: 1px; margin-bottom: 8px;
+    animation: pulse-badge 1.4s ease-in-out infinite;
+  }
+  @keyframes pulse-badge { 0%,100% { opacity: 1; } 50% { opacity: 0.55; } }
+  #confirm-panel .item { border-top: 1px solid #7f1d1d; padding-top: 8px; margin-top: 8px; }
+  #confirm-panel .item:first-of-type { border-top: none; margin-top: 0; }
+  #confirm-panel .title { font-size: 12px; color: #fff; margin-bottom: 4px; }
+  #confirm-panel .snippet { font-size: 11px; color: #fca5a5; white-space: pre-wrap; max-height: 90px; overflow-y: auto; margin-bottom: 6px; }
+  #confirm-panel textarea {
+    width: 100%; box-sizing: border-box; background: #000; color: #e2e8f0;
+    border: 1px solid #7f1d1d; font-family: inherit; font-size: 12px; padding: 6px; margin-bottom: 6px;
+  }
+  #confirm-panel button {
+    background: #f87171; color: #000; border: none; padding: 6px 10px;
+    font-family: inherit; font-weight: bold; cursor: pointer; font-size: 11px;
+  }
+  #confirm-panel a { color: #fca5a5; }
+  #confirm-panel .status { font-size: 10px; margin-top: 4px; min-height: 12px; }
 </style>
 </head>
 <body>
@@ -47,6 +73,11 @@
   <input id="secret-input" type="password" placeholder="operator secret (saved locally)" />
   <button id="req-submit">Send to Product Manager</button>
   <div id="submit-status"></div>
+</div>
+
+<div id="confirm-panel">
+  <div class="badge">⚠ REQUIRES YOUR CONFIRMATION</div>
+  <div id="confirm-items"></div>
 </div>
 
 <!-- Phaser 3, free/MIT. Swap to a pinned local copy before production use. -->
@@ -174,7 +205,7 @@ class PipelineScene extends Phaser.Scene {
   }
 }
 
-new Phaser.Game({
+const retrodevGame = new Phaser.Game({
   type: Phaser.AUTO,
   width: 860,
   height: 520,
@@ -182,6 +213,12 @@ new Phaser.Game({
   backgroundColor: '#0b0e14',
   scene: [PipelineScene]
 });
+// Exposed so the real-status poller below can drive the same ticker the
+// mock feed uses, without them needing to know about each other directly.
+window.retrodevTicker = (text) => {
+  const scene = retrodevGame.scene.keys.pipeline;
+  if (scene) scene.ticker(text);
+};
 
 // --- Requirement submission form -> /api/submit-requirement ---
 // The operator secret is stored only in this browser's localStorage; it's
@@ -226,6 +263,86 @@ new Phaser.Game({
       submitBtn.disabled = false;
     }
   });
+})();
+
+// --- Poll /api/pipeline-status for real "awaiting-human" items ---
+// Renders a pulsing "REQUIRES YOUR CONFIRMATION" badge with an inline
+// reply box per pending issue (PRs link out to GitHub instead, since
+// merging isn't something to do from a text box). Polling, not a
+// websocket, per PRD v1's cron-based/free-tier-first design.
+(function () {
+  const panel = document.getElementById('confirm-panel');
+  const itemsEl = document.getElementById('confirm-items');
+  const secretInput = document.getElementById('secret-input');
+  let lastCount = 0;
+
+  function escapeHtml(s) {
+    return s.replace(/[&<>"']/g, (c) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  }
+
+  function render(pending) {
+    if (!pending.length) { panel.style.display = 'none'; itemsEl.innerHTML = ''; return; }
+    panel.style.display = 'block';
+    itemsEl.innerHTML = pending.map((item) => `
+      <div class="item" data-issue="${item.number}">
+        <div class="title">#${item.number} — ${escapeHtml(item.title)}</div>
+        <div class="snippet">${escapeHtml(item.snippet)}</div>
+        ${item.is_pull_request
+          ? `<a href="${item.url}" target="_blank" rel="noopener">Review &amp; merge on GitHub →</a>`
+          : `<textarea rows="2" placeholder="Type your answer/decision..."></textarea>
+             <button data-action="answer">Send answer</button>
+             <a href="${item.url}" target="_blank" rel="noopener" style="margin-left:8px;">(or view on GitHub)</a>
+             <div class="status"></div>`
+        }
+      </div>
+    `).join('');
+  }
+
+  itemsEl.addEventListener('click', async (e) => {
+    if (e.target.dataset.action !== 'answer') return;
+    const itemEl = e.target.closest('.item');
+    const issueNumber = itemEl.dataset.issue;
+    const textarea = itemEl.querySelector('textarea');
+    const statusEl = itemEl.querySelector('.status');
+    const answer = textarea.value.trim();
+    const secret = secretInput.value.trim();
+    if (!answer) { statusEl.textContent = 'Type an answer first.'; return; }
+    if (!secret) { statusEl.textContent = 'Enter operator secret in the submit panel first.'; return; }
+
+    e.target.disabled = true;
+    statusEl.textContent = 'Sending...';
+    try {
+      const res = await fetch('/api/answer', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-retro-secret': secret },
+        body: JSON.stringify({ issue_number: issueNumber, answer }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
+      statusEl.textContent = 'Sent — will stay flagged until the pipeline re-reads it and clears the badge.';
+      textarea.value = '';
+    } catch (err) {
+      statusEl.textContent = `Failed: ${err.message}`;
+    } finally {
+      e.target.disabled = false;
+    }
+  });
+
+  async function poll() {
+    try {
+      const res = await fetch('/api/pipeline-status', { cache: 'no-store' });
+      const data = await res.json();
+      render(data.pending || []);
+      if (data.pending && data.pending.length !== lastCount) {
+        lastCount = data.pending.length;
+        window.retrodevTicker && window.retrodevTicker(
+          lastCount ? `${lastCount} item(s) need your confirmation` : 'All clear — nothing waiting on you'
+        );
+      }
+    } catch (e) { /* transient network errors: just try again next poll */ }
+  }
+  poll();
+  setInterval(poll, 15000);
 })();
 </script>
 </body>

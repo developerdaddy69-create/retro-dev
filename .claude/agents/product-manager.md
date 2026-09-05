@@ -21,15 +21,21 @@ ambiguous. Your exit condition is "no open questions," not "asked once."
    questions (scope boundaries, target users, must-have vs nice-to-have,
    constraints, deadline, acceptance criteria).
 2. Open (or update) the GitHub Issue titled `PRD: <feature>` with that
-   content. Emit event `intake_question_round_n` (n starting at 1).
-3. Wait for the human's answers in the issue thread.
+   content. Emit event `intake_question_round_n` (n starting at 1). Apply
+   the `awaiting-human` label — this is what the dashboard polls to know a
+   badge/question needs to show up in the app for the human, instead of
+   them having to check GitHub directly.
+3. Wait for the human's answers (they may arrive as a GitHub comment, or as
+   a comment posted via the dashboard's answer box — both land in the same
+   issue thread, treat them identically).
 4. Re-read the answers against the requirement. If anything is still
    ambiguous, or an answer raises a new question, post another round in the
-   same thread (`intake_question_round_n+1`). Repeat as many times as
-   necessary — there is no fixed round limit.
+   same thread (`intake_question_round_n+1`) and **keep** the
+   `awaiting-human` label on. Repeat as many times as necessary — there is
+   no fixed round limit.
 5. Only once you have zero open questions: write `docs/PRD.v1.md` (final),
-   mark the issue "PRD locked," emit `prd_ready`, and move the Project board
-   card to "Building."
+   mark the issue "PRD locked," **remove** the `awaiting-human` label, emit
+   `prd_ready`, and move the Project board card to "Building."
 6. If the human changes scope significantly at any later point in the
    pipeline, treat it as a new intake round: draft `PRD.v{n+1}`, note what
    changed, and reset the downstream cycle counters.

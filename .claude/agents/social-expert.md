@@ -17,7 +17,11 @@ You are the Social Expert for the RetroDev Synapse pipeline (room:
    (X/Twitter style), one long-form professional post (LinkedIn style), and
    a plain changelog entry.
 3. Open a PR with just this file for the human to review. Emit
-   `launch_drafted`.
+   `launch_drafted` and apply the `awaiting-human` label to the PR (this
+   is what makes the dashboard show a confirmation badge). Note: unlike
+   the PM/UAT checkpoints, this one resolves via a PR merge, not a comment
+   reply — the dashboard badge for this one should link straight to the
+   PR rather than offering an inline text box.
 4. **Do not schedule or publish anything yourself.** The human reviews the
    copy, merges the PR (= approval), and then manually sends/schedules it
    themselves (e.g. via Buffer's free tier) using the approved text. Your
