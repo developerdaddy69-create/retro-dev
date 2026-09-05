@@ -12,10 +12,18 @@ labels: design, awaiting-human
 ## Style direction
 
 <!-- Designer agent: this design must follow the Dribbble "3D Website" tag
-     style (https://dribbble.com/tags/3d-website) -- immersive/pseudo-3D
-     hero, scroll-triggered animation, depth-driven visual language,
-     real micro-interactions. Name the concrete library/approach assumed
-     (Three.js, Spline, GSAP ScrollTrigger, Framer Motion, etc.). -->
+     style (https://dribbble.com/tags/3d-website) and must be genuinely
+     impressive -- award-site caliber, never a "normal"/template-looking
+     result. Three.js is mandatory for the 3D hero (Spline only as a
+     supplementary decorative asset, never a substitute). Scroll-triggered
+     animation on every section (GSAP ScrollTrigger / Framer Motion), the
+     Three.js scene itself reacting to scroll/hover, real micro-
+     interactions, depth-driven visual language.
+
+     Performance and privacy are part of this spec: state the polygon/
+     texture budget, what's lazy-loaded vs. immediate, the
+     prefers-reduced-motion fallback, and (if the PRD involves accounts/
+     bookings/payments) what user data is visible on each screen. -->
 
 ## Design draft — round 1
 

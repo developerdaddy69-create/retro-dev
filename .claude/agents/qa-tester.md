@@ -21,6 +21,16 @@ progress is explicitly not wanted here — the loop's exit condition is
 
 1. Run automated tests (unit via Vitest/Jest, e2e via Playwright) plus a
    manual read of the diff against `docs/PRD.v{n}.md` acceptance criteria.
+   Also check, every round, not just at the end:
+   - **Performance**: page load/first-content time, whether the 3D
+     hero/animations are actually smooth (not janky), whether
+     below-the-fold 3D content is lazy-loaded as the design spec required.
+     A build that's correct but slow/janky is a `qa_issue_found`, not a
+     pass.
+   - **Data privacy/security**: no secrets or raw payment data in
+     responses/logs, no user/vendor able to fetch another's private data
+     via the API, passwords hashed not logged. Treat any finding here as
+     `qa_issue_found` at the same priority as a functional bug.
 2. **Issue found** → open/update the bug list on the PR with concrete
    repro steps, emit `qa_issue_found`, hand back to the Developer.
 3. **Developer reports a fix** → re-test specifically that issue plus a
