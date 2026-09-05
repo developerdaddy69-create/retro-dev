@@ -36,9 +36,14 @@
   #submit-status { font-size: 11px; margin-top: 6px; min-height: 14px; }
 
   #confirm-panel {
-    position: fixed; top: 46px; left: 12px; width: 380px;
+    position: fixed; bottom: 12px; right: 12px; width: 380px; max-height: 70vh; overflow-y: auto;
     background: #1a0f0f; border: 2px solid #f87171; padding: 12px; z-index: 6;
     font-family: 'Courier New', monospace; color: #fecaca; display: none;
+  }
+  #confirm-panel .item.answered { opacity: 0.6; }
+  #confirm-panel .flagged {
+    display: inline-block; background: #4ade80; color: #000; font-weight: bold;
+    font-size: 10px; padding: 2px 6px; letter-spacing: 0.5px; margin-bottom: 4px;
   }
   #confirm-panel .badge {
     display: inline-block; background: #f87171; color: #000; font-weight: bold;
@@ -276,26 +281,47 @@ window.retrodevTicker = (text) => {
   const secretInput = document.getElementById('secret-input');
   let lastCount = 0;
 
+  // Issue numbers you've already replied to, persisted so a page reload
+  // doesn't forget and show the reply box again. Cleared automatically
+  // once the issue drops out of "pending" (i.e. the agent removed the
+  // awaiting-human label after processing your answer).
+  const answeredKey = 'retrodev_answered_issues';
+  const answered = new Set(JSON.parse(localStorage.getItem(answeredKey) || '[]'));
+  function saveAnswered() { localStorage.setItem(answeredKey, JSON.stringify([...answered])); }
+
   function escapeHtml(s) {
     return s.replace(/[&<>"']/g, (c) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   }
 
   function render(pending) {
+    // Forget answered-flags for anything no longer pending (resolved).
+    const stillPending = new Set(pending.map((i) => String(i.number)));
+    let changed = false;
+    for (const n of [...answered]) { if (!stillPending.has(n)) { answered.delete(n); changed = true; } }
+    if (changed) saveAnswered();
+
     if (!pending.length) { panel.style.display = 'none'; itemsEl.innerHTML = ''; return; }
     panel.style.display = 'block';
-    itemsEl.innerHTML = pending.map((item) => `
-      <div class="item" data-issue="${item.number}">
+    itemsEl.innerHTML = pending.map((item) => {
+      const isAnswered = answered.has(String(item.number));
+      return `
+      <div class="item${isAnswered ? ' answered' : ''}" data-issue="${item.number}">
         <div class="title">#${item.number} — ${escapeHtml(item.title)}</div>
+        ${isAnswered ? '<div class="flagged">✓ FLAGGED — ANSWER SENT, AWAITING PIPELINE</div>' : ''}
         <div class="snippet">${escapeHtml(item.snippet)}</div>
         ${item.is_pull_request
           ? `<a href="${item.url}" target="_blank" rel="noopener">Review &amp; merge on GitHub →</a>`
-          : `<textarea rows="2" placeholder="Type your answer/decision..."></textarea>
-             <button data-action="answer">Send answer</button>
-             <a href="${item.url}" target="_blank" rel="noopener" style="margin-left:8px;">(or view on GitHub)</a>
-             <div class="status"></div>`
+          : (isAnswered
+              ? `<a href="${item.url}" target="_blank" rel="noopener">(view thread on GitHub)</a>`
+              : `<textarea rows="2" placeholder="Type your answer/decision..."></textarea>
+                 <button data-action="answer">Send answer</button>
+                 <a href="${item.url}" target="_blank" rel="noopener" style="margin-left:8px;">(or view on GitHub)</a>
+                 <div class="status"></div>`
+            )
         }
       </div>
-    `).join('');
+    `;
+    }).join('');
   }
 
   itemsEl.addEventListener('click', async (e) => {
@@ -319,8 +345,10 @@ window.retrodevTicker = (text) => {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
-      statusEl.textContent = 'Sent — will stay flagged until the pipeline re-reads it and clears the badge.';
+      answered.add(String(issueNumber));
+      saveAnswered();
       textarea.value = '';
+      poll(); // re-render immediately so the "FLAGGED" state shows without waiting for the next 15s tick
     } catch (err) {
       statusEl.textContent = `Failed: ${err.message}`;
     } finally {
