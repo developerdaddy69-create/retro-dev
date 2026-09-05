@@ -73,14 +73,36 @@ on your behalf — those need your login. Everything up to that boundary
 yourself, or ask me to push once you've created the empty repo and given me
 the remote URL.
 
-## Next up
-Phases 0–3 are done and locally verified. Remaining work is Phase 4, which
-needs your accounts/credentials (see above) — nothing further can be built
-standalone without one of:
-- a GitHub repo (empty one, or give me a remote URL) to push this to and
-  enable Actions/Environments on
-- a Vercel account connected to that repo (free tier)
-- a Cloudflare account (free tier) for the webhook relay
-- a Buffer account (free tier) for post-approval scheduling
+## Phase 5 — PRD v1: RetroDev Synapse is its own product
+Locked PRD: [docs/PRD.v1.md](docs/PRD.v1.md) — single operator, real
+deployed output, fully autonomous via Claude Code scheduled/cron sessions,
+dashboard doubles as the submission UI.
 
-Once any of those exist, tell me and I'll wire the corresponding piece.
+- [x] Step 1: `api/submit-requirement.js` — Vercel serverless function that
+      brokers dashboard submissions into a GitHub Issue via `GITHUB_TOKEN`
+      (server-side env var only), guarded by a `SUBMIT_SECRET` header
+- [x] Step 2: requirement-submission form added to `dashboard/index.html`
+- [x] End-to-end verified LIVE: submitted a real test requirement through
+      the deployed dashboard → correctly created
+      [issue #1](https://github.com/developerdaddy69-create/retro-dev/issues/1)
+      with the right title, body, and `prd`/`intake` labels. Debugged and
+      fixed a fine-grained-PAT permission gap along the way (`Issues` scope
+      needed to be "Read and write") — see chat history for the exact fix.
+- [ ] Step 3: set up a Claude Code scheduled/cron task that polls open
+      `prd`/pipeline issues and advances the next due agent step (PM
+      answering, Developer building, QA testing, etc.)
+- [ ] Step 4: swap the dashboard's mock event feed for real polling
+      against GitHub's API (issues, PRs, deployments)
+
+## Still open from Phase 4
+- [ ] `deploy-uat.yml` needs `VERCEL_TOKEN` (CLI-based alias promotion,
+      behind the required-reviewer gate)
+- [ ] GitHub Environment `uat` with required reviewers (you) not yet
+      confirmed set up
+- [ ] Cloudflare Workers relay / Buffer — deferred per PRD v1 (cron polling
+      instead of instant webhooks; marketing stays draft-only for now)
+
+## Next up
+Build Phase 5 Step 3 — the Claude Code scheduled task that actually
+advances the pipeline (starting with: answer issue #1's intake as the
+Product Manager would, since that's the first real item in the queue).
