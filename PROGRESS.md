@@ -88,22 +88,28 @@ dashboard doubles as the submission UI.
       with the right title, body, and `prd`/`intake` labels. Debugged and
       fixed a fine-grained-PAT permission gap along the way (`Issues` scope
       needed to be "Read and write") — see chat history for the exact fix.
-- [x] Step 3: scheduled task `retrodev-pipeline-advancer` created (runs
-      every ~15 min, task file at
-      `~/.claude/scheduled-tasks/retrodev-pipeline-advancer/SKILL.md`). Each
-      run: pulls the repo, reads whichever `.claude/agents/*.md` role is
-      next due from open `prd`/`uat` issues, performs exactly one action,
-      posts it back to GitHub, and stops — never auto-approves the 3 hard
-      human checkpoints. Uses a separate local-only token
-      (`.env.local`, gitignored, permissions: Issues/PRs/Contents/Actions
-      read-write) distinct from the Vercel-side token.
+- [x] Step 3: scheduled task `retrodev-pipeline-advancer` built, but
+      **disabled** — it hung in "Running" forever on both attempts because
+      an unattended run can't answer its own permission prompt (Bash/git/
+      curl approval). Pivoted per your decision 2026-09-05: **I act as
+      the next-due agent role live, in conversation, when you ask** —
+      not truly unattended, but reliable, and avoids the scheduled-task
+      permission deadlock. Revisit true autonomy later if it's worth
+      another supervised-approval attempt.
+- [x] Confirmation-badge loop verified end-to-end for real: PM posted
+      real questions on issue #1 → you answered via the dashboard badge
+      ("agreed"/"tesssssstttt") → I read the reply, closed out the issue
+      (it was just the connectivity test), cleared the `awaiting-human`
+      label → badge disappeared from the dashboard. Full loop works.
 - [ ] Step 4: swap the dashboard's mock event feed for real polling
-      against GitHub's API (issues, PRs, deployments)
+      against GitHub's API (issues, PRs, deployments) — the confirmation
+      badge already does this for the human-checkpoint case; the mock
+      Phaser room animations (bubbles/package walks) are still the old
+      scripted sequence, not yet driven by real events.
 
 ## Live run log (Phase 5)
-- First scheduled run expected ~09:45 UTC 2026-09-05 — will pick up
-  issue #1 and draft the Product Manager's restatement + round-1
-  clarifying questions (currently shows "Pending" placeholders).
+- Issue #1 ("debug test") closed 2026-09-05 after confirming it was only
+  the connectivity test. Next open issue will be a real requirement.
 
 ## Still open from Phase 4
 - [ ] `deploy-uat.yml` needs `VERCEL_TOKEN` (CLI-based alias promotion,
@@ -114,6 +120,6 @@ dashboard doubles as the submission UI.
       instead of instant webhooks; marketing stays draft-only for now)
 
 ## Next up
-Build Phase 5 Step 3 — the Claude Code scheduled task that actually
-advances the pipeline (starting with: answer issue #1's intake as the
-Product Manager would, since that's the first real item in the queue).
+Waiting on a real requirement submitted through the dashboard. Once it
+lands, I act as Product Manager on it live (per the automation-path
+decision above) and the intake loop runs for real.
