@@ -399,6 +399,15 @@ class PipelineScene extends Phaser.Scene {
     this.time.delayedCall(4000, () => { bubble.destroy(); delete this.bubbles[roomKey]; });
   }
 
+  // Sets exactly one room "working" (seated at their desk) and every other
+  // room "relaxing" -- driven by the real current-project stage
+  // (/api/pipeline-status, polled every 15s), not by transient event
+  // animation. This is what makes the correct agent show up seated even
+  // right after a fresh page load, when no "new" event has fired yet.
+  setActiveRoom(roomKey) {
+    Object.keys(this.roomSprites).forEach((key) => this.setWorking(key, key === roomKey));
+  }
+
   walkPackage(fromKey, toKey, tint = 0xffffff, onDone) {
     const from = this.roomSprites[fromKey].room;
     const to = this.roomSprites[toKey].room;
@@ -457,6 +466,10 @@ window.retrodevPlayEvent = (room, text) => {
 window.retrodevSetWaiting = (reason) => {
   const scene = retrodevGame.scene.keys.pipeline;
   if (scene) scene.setWaiting(reason);
+};
+window.retrodevSetActiveRoom = (roomKey) => {
+  const scene = retrodevGame.scene.keys.pipeline;
+  if (scene) scene.setActiveRoom(roomKey);
 };
 
 // --- Requirement submission form -> /api/submit-requirement ---
@@ -657,6 +670,9 @@ window.retrodevSetWaiting = (reason) => {
       const data = await res.json();
       render(data.pending || []);
       renderCurrent(data.current || null);
+      if (window.retrodevSetActiveRoom) {
+        window.retrodevSetActiveRoom(data.current ? data.current.room : null);
+      }
       const pending = data.pending || [];
       if (pending.length !== lastCount) {
         lastCount = pending.length;

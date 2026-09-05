@@ -11,10 +11,10 @@ const REPO = 'developerdaddy69-create/retro-dev';
 
 function stageFor(labels) {
   const names = (labels || []).map((l) => (typeof l === 'string' ? l : l.name));
-  if (names.includes('uat')) return 'UAT Review';
-  if (names.includes('design')) return 'Design';
-  if (names.includes('prd') || names.includes('intake')) return 'Requirement Intake (Product Manager)';
-  return 'In Development';
+  if (names.includes('uat')) return { stage: 'UAT Review', room: 'uat_lounge' };
+  if (names.includes('design')) return { stage: 'Design', room: 'design_studio' };
+  if (names.includes('prd') || names.includes('intake')) return { stage: 'Requirement Intake (Product Manager)', room: 'planning_deck' };
+  return { stage: 'In Development', room: 'code_vault' };
 }
 
 module.exports = async (req, res) => {
@@ -52,11 +52,13 @@ module.exports = async (req, res) => {
     if (allOpen.length) {
       const top = allOpen[0];
       const names = (top.labels || []).map((l) => l.name);
+      const { stage, room } = stageFor(top.labels);
       current = {
         number: top.number,
         title: top.title,
         url: top.html_url,
-        stage: stageFor(top.labels),
+        stage,
+        room,
         awaiting_human: names.includes('awaiting-human'),
         updated_at: top.updated_at,
       };
