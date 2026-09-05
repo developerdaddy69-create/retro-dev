@@ -41,8 +41,13 @@ land; each has a status: `done`, `in progress`, `blocked (needs you)`.
 ## Phase 4 — Live wiring (blocked — needs accounts/credentials only you can create)
 - [x] GitHub repository created and scaffold pushed —
       https://github.com/developerdaddy69-create/retro-dev (branch `main`)
-- [ ] Enable GitHub Actions on that repo (should auto-enable on push; confirm
-      in the repo's Actions tab)
+- [x] GitHub Actions confirmed enabled — workflows run automatically on
+      push. Caught and fixed a real YAML syntax bug in `deploy-uat.yml`
+      (backslash line-continuation inside a `run: |` block broke GitHub's
+      parser) — see commit `a4dcfd1`.
+- [ ] `CI` / `Deploy Dev` will keep failing (`npm ci` — no `package.json`
+      yet) until real application code exists in `src/`. This is expected,
+      not a bug — nothing to fix until there's an actual app to build.
 - [ ] Connect Vercel (free tier) to the repo for dev-preview deploys
 - [ ] Set up the GitHub Environment "uat" with required reviewers (you)
 - [ ] Deploy the webhook→WebSocket relay (Cloudflare Workers free tier) and
