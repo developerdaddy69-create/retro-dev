@@ -34,9 +34,15 @@ land; each has a status: `done`, `in progress`, `blocked (needs you)`.
 - [x] Verified in-browser: Phaser initializes cleanly (WebGL, no console
       errors), all 6 rooms render, sprites idle-animate, bubbles/ticker/
       "waiting on you" banner all fire correctly from the mock feed
-- [ ] Swap mock event feed for the real webhook relay (Phase 4)
-- [ ] Real Kenney.nl sprite sheets (currently placeholder colored rectangles
-      so the scene runs standalone with zero external assets/downloads)
+- [x] Swap mock event feed for the real webhook relay (Phase 4)
+- [x] Real Kenney.nl sprite sheets — cropped 6 character sprites + 3
+      floor/furniture tiles from the CC0 "Tiny Dungeon" pack directly out of
+      `Tilemap/tilemap.png` (the numbered `tile_NNNN.png` files don't map
+      1:1 to grid position, so cropped by pixel math instead). Wired into
+      `dashboard/index.html` via `preload()`/`this.add.image()`, replacing
+      every placeholder rectangle/circle. Tiled floor texture + a desk/
+      dresser prop per room. Verified live on Vercel, no console errors —
+      see [dashboard/assets/CREDITS.md](dashboard/assets/CREDITS.md).
 
 ## Phase 4 — Live wiring (blocked — needs accounts/credentials only you can create)
 - [x] GitHub repository created and scaffold pushed —
