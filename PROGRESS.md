@@ -88,11 +88,22 @@ dashboard doubles as the submission UI.
       with the right title, body, and `prd`/`intake` labels. Debugged and
       fixed a fine-grained-PAT permission gap along the way (`Issues` scope
       needed to be "Read and write") — see chat history for the exact fix.
-- [ ] Step 3: set up a Claude Code scheduled/cron task that polls open
-      `prd`/pipeline issues and advances the next due agent step (PM
-      answering, Developer building, QA testing, etc.)
+- [x] Step 3: scheduled task `retrodev-pipeline-advancer` created (runs
+      every ~15 min, task file at
+      `~/.claude/scheduled-tasks/retrodev-pipeline-advancer/SKILL.md`). Each
+      run: pulls the repo, reads whichever `.claude/agents/*.md` role is
+      next due from open `prd`/`uat` issues, performs exactly one action,
+      posts it back to GitHub, and stops — never auto-approves the 3 hard
+      human checkpoints. Uses a separate local-only token
+      (`.env.local`, gitignored, permissions: Issues/PRs/Contents/Actions
+      read-write) distinct from the Vercel-side token.
 - [ ] Step 4: swap the dashboard's mock event feed for real polling
       against GitHub's API (issues, PRs, deployments)
+
+## Live run log (Phase 5)
+- First scheduled run expected ~09:45 UTC 2026-09-05 — will pick up
+  issue #1 and draft the Product Manager's restatement + round-1
+  clarifying questions (currently shows "Pending" placeholders).
 
 ## Still open from Phase 4
 - [ ] `deploy-uat.yml` needs `VERCEL_TOKEN` (CLI-based alias promotion,
