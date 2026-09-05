@@ -42,6 +42,16 @@ land; each has a status: `done`, `in progress`, `blocked (needs you)`.
       `dashboard/index.html` via `preload()`/`this.add.image()`, replacing
       every placeholder rectangle/circle. Tiled floor texture + a desk/
       dresser prop per room. Verified live on Vercel, no console errors —
+- [x] Open-plan office redesign: removed the six separate room boxes in
+      favor of one shared floor, so agents visibly cross paths near each
+      other's desks instead of pacing alone. Each agent has a desk with a
+      procedurally-drawn pixel-art laptop (Kenney's pack has none) and a
+      chair. `setWorking(key, working)` drives a real working/relaxing
+      state machine: any real pipeline event for a room seats that agent
+      at their desk with a small typing bob for 20s (auto-refreshed by
+      further events); otherwise they free-roam the whole floor and
+      occasionally pause for a drawn teacup ("tea break"). Verified live:
+      triggering a test event visibly walks the agent to their desk.
       see [dashboard/assets/CREDITS.md](dashboard/assets/CREDITS.md).
 
 ## Phase 4 — Live wiring (blocked — needs accounts/credentials only you can create)
