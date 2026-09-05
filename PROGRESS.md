@@ -150,14 +150,22 @@ dashboard doubles as the submission UI.
       with the right title, body, and `prd`/`intake` labels. Debugged and
       fixed a fine-grained-PAT permission gap along the way (`Issues` scope
       needed to be "Read and write") — see chat history for the exact fix.
-- [x] Step 3: scheduled task `retrodev-pipeline-advancer` built, but
-      **disabled** — it hung in "Running" forever on both attempts because
-      an unattended run can't answer its own permission prompt (Bash/git/
-      curl approval). Pivoted per your decision 2026-09-05: **I act as
-      the next-due agent role live, in conversation, when you ask** —
-      not truly unattended, but reliable, and avoids the scheduled-task
-      permission deadlock. Revisit true autonomy later if it's worth
-      another supervised-approval attempt.
+- [x] Step 3: scheduled task `retrodev-pipeline-advancer` — **fixed and now
+      genuinely working, 2026-09-05.** The original "stuck at Running
+      forever" bug root-caused to a global Bash pre-hook trying to use
+      `tmux` on every Bash call (not installed on this Windows machine) —
+      removed the two tmux-related hooks from `~/.claude/settings.json`.
+      Separately, a "Run now" surfaced a real (fast-failing, not hanging)
+      permission prompt for the task's first `git pull` — approving it
+      once persists the approval for future automatic runs. After both
+      fixes: a real automatic run completed successfully — pulled the
+      repo, checked open `prd`/`design`/`uat` issues, correctly identified
+      issue #2 was already `awaiting-human` (nothing due), and reported
+      back instead of hanging or inventing busywork. **This is the
+      genuinely-autonomous path per your explicit decision not to use a
+      paid API key** — the scheduled task now runs hourly on its own,
+      reading/writing GitHub for real, no Claude Code session supervision
+      or live involvement from me needed per-run.
 - [x] Confirmation-badge loop verified end-to-end for real: PM posted
       real questions on issue #1 → you answered via the dashboard badge
       ("agreed"/"tesssssstttt") → I read the reply, closed out the issue
